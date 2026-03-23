@@ -116,7 +116,13 @@ export default function App() {
 
     const canvas = await html2canvas(passportRef.current, {
       backgroundColor: null,
-      scale: 2
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      width: passportRef.current.scrollWidth,
+      height: passportRef.current.scrollHeight,
+      windowWidth: passportRef.current.scrollWidth,
+      windowHeight: passportRef.current.scrollHeight
     });
     const link = document.createElement("a");
     link.href = canvas.toDataURL("image/png");
@@ -242,7 +248,7 @@ export default function App() {
       <main className="min-h-screen px-4 py-8 text-slate-100 md:px-6">
         <div className="mx-auto flex max-w-5xl flex-col gap-8">
           <motion.section
-            className="rounded-[2rem] border border-fuchsia-400/20 bg-slate-950/50 p-6 md:p-8 backdrop-blur"
+            className="rounded-[2rem] border border-cyan-300/15 bg-[linear-gradient(180deg,rgba(4,10,24,0.85),rgba(10,17,32,0.72))] p-6 md:p-8 backdrop-blur"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: "easeOut" }}
@@ -259,7 +265,7 @@ export default function App() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <button
-                className="rounded-full bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-fuchsia-100"
+                className="rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-rose-300 px-5 py-3 font-semibold text-slate-950 transition hover:brightness-105"
                 onClick={() => void handleExportAsImage()}
                 type="button"
               >
@@ -284,7 +290,10 @@ export default function App() {
             subtitle="A compact card you can export or share directly."
           >
             <div className="overflow-x-auto">
-              <div ref={passportRef} className="mx-auto w-fit">
+              <div
+                ref={passportRef}
+                className="mx-auto w-fit rounded-[2.5rem] bg-[linear-gradient(180deg,rgba(5,11,24,0.72),rgba(10,17,31,0.55))] p-5"
+              >
                 <MusicPassportCard data={sharedPassport} />
               </div>
             </div>
@@ -298,16 +307,16 @@ export default function App() {
     <main className="min-h-screen px-4 py-6 text-slate-100 md:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 md:gap-8">
         <motion.section
-          className="relative overflow-hidden rounded-[2rem] border border-fuchsia-400/20 bg-slate-950/55 p-6 shadow-[0_30px_100px_rgba(168,85,247,0.2)] backdrop-blur md:p-8"
+          className="relative overflow-hidden rounded-[2rem] border border-cyan-300/15 bg-[linear-gradient(180deg,rgba(5,11,24,0.82),rgba(10,17,31,0.74))] p-6 shadow-[0_34px_120px_rgba(8,145,178,0.14)] backdrop-blur md:p-8"
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.16),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(236,72,153,0.15),transparent_28%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(251,113,133,0.14),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.12),transparent_28%)]" />
           <div className="relative">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="mb-3 text-sm uppercase tracking-[0.35em] text-fuchsia-300">
+                <p className="mb-3 text-sm uppercase tracking-[0.35em] text-cyan-200">
                   Your Music DNA
                 </p>
                 <h1 className="max-w-3xl text-3xl font-semibold leading-tight text-white md:text-5xl lg:text-6xl">
@@ -319,7 +328,7 @@ export default function App() {
               </div>
 
               {dashboard?.source === "lastfm" ? (
-                <span className="w-fit rounded-full border border-fuchsia-300/30 bg-fuchsia-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-fuchsia-100">
+                <span className="w-fit rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-100">
                   Live Mode
                 </span>
               ) : isYoutubeProfileMode ? (
@@ -369,7 +378,7 @@ export default function App() {
                   <div className="mx-auto flex max-w-3xl flex-col gap-8">
                     <div className="grid gap-6 lg:grid-cols-[1.35fr_0.95fr]">
                       <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-                        <div className="mb-4 rounded-full border border-fuchsia-300/30 bg-fuchsia-400/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-fuchsia-200">
+                        <div className="mb-4 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-cyan-100">
                           Drag and drop
                         </div>
                         <p className="text-xl font-semibold text-white">
@@ -382,7 +391,7 @@ export default function App() {
                           Google Takeout is still the source that unlocks play counts, streaks, timestamps, and heatmaps for YouTube Music.
                         </p>
                         <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                          <label className="cursor-pointer rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-fuchsia-950/40 transition hover:scale-[1.02]">
+                          <label className="cursor-pointer rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-rose-400 px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:scale-[1.02]">
                             Choose file
                             <input
                               className="sr-only"
@@ -401,12 +410,12 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/60 p-5">
+                        <div className="rounded-[1.5rem] border border-cyan-300/10 bg-slate-950/55 p-5">
                         <label className="block text-sm font-semibold text-white">
                           YouTube Music Profile Link
                         </label>
                         <input
-                          className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-fuchsia-400/50"
+                          className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50"
                           onChange={handleYoutubeMusicProfileUrlChange}
                           placeholder="Paste a YouTube Music profile or channel link"
                           type="text"
@@ -423,12 +432,12 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-[1.75rem] border border-fuchsia-400/20 bg-slate-900/60 p-6">
+                <div className="rounded-[1.75rem] border border-cyan-300/15 bg-slate-900/60 p-6">
                   <label className="block text-sm font-semibold text-white">
                     Last.fm Username or Profile URL
                   </label>
                   <input
-                    className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-fuchsia-400/50"
+                    className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50"
                     onChange={(event) => setLastFmUsername(event.target.value)}
                     placeholder="Enter a username or paste https://www.last.fm/user/..."
                     type="text"
@@ -469,12 +478,12 @@ export default function App() {
                   {isUploading ? <LoadingSpinner /> : null}
                   {error ? <p className="text-sm text-rose-300">{error}</p> : null}
                   {actionMessage ? (
-                    <p className="text-sm text-fuchsia-200">{actionMessage}</p>
+                    <p className="text-sm text-cyan-100">{actionMessage}</p>
                   ) : null}
                 </div>
 
                 <button
-                  className="rounded-full bg-white px-6 py-3 font-semibold text-slate-950 transition hover:bg-fuchsia-100 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
+                  className="rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-rose-300 px-6 py-3 font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
                   disabled={isUploading}
                   type="submit"
                 >
@@ -490,15 +499,15 @@ export default function App() {
         </motion.section>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/35 p-5">
+          <div className="rounded-[1.75rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(7,17,31,0.72),rgba(6,10,18,0.58))] p-5">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Unique Songs</p>
             <p className="mt-3 text-3xl font-semibold text-white">{uniqueSongs}</p>
           </div>
-          <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/35 p-5">
+          <div className="rounded-[1.75rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(7,17,31,0.72),rgba(6,10,18,0.58))] p-5">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Total Plays</p>
             <p className="mt-3 text-3xl font-semibold text-white">{totalPlays}</p>
           </div>
-          <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/35 p-5">
+          <div className="rounded-[1.75rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(7,17,31,0.72),rgba(6,10,18,0.58))] p-5">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
               {dashboard?.source === "lastfm"
                 ? "Live User"
@@ -523,7 +532,10 @@ export default function App() {
           >
             <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
               <div className="overflow-x-auto">
-                <div ref={passportRef} className="w-fit">
+                <div
+                  ref={passportRef}
+                  className="w-fit rounded-[2.5rem] bg-[linear-gradient(180deg,rgba(5,11,24,0.72),rgba(10,17,31,0.55))] p-5"
+                >
                   <MusicPassportCard data={passportData} />
                 </div>
               </div>
