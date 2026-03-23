@@ -22,6 +22,7 @@ import {
   YAxis
 } from "recharts";
 import { MusicPassportCard, type MusicPassportData } from "./MusicPassportCard";
+import { RecapView } from "./RecapView";
 import {
   ChartSkeleton,
   ChartTooltip,
@@ -71,6 +72,7 @@ export default function App() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [isRecapOpen, setIsRecapOpen] = useState(false);
   const passportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -184,6 +186,7 @@ export default function App() {
       });
       setDashboard(payload);
       setParsedHistory([]);
+      setIsRecapOpen(false);
       return;
     }
 
@@ -205,6 +208,7 @@ export default function App() {
     setDashboard(
       buildTakeoutDashboardResponse(statsPayload, genrePayload, moodPayload)
     );
+    setIsRecapOpen(false);
   }
 
   async function handleLastFmSubmit() {
@@ -217,6 +221,7 @@ export default function App() {
     const payload = await postJson<DashboardResponse>("/lastfm", { username });
     setDashboard(payload);
     setParsedHistory([]);
+    setIsRecapOpen(false);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -305,6 +310,16 @@ export default function App() {
 
   return (
     <main className="min-h-screen px-4 py-6 text-slate-100 md:px-6 lg:px-8">
+      {stats && !isYoutubeProfileMode ? (
+        <RecapView
+          isOpen={isRecapOpen}
+          onClose={() => setIsRecapOpen(false)}
+          stats={stats}
+          genreBreakdown={genreBreakdown}
+          moodTimeline={moodTimeline}
+          passportData={passportData}
+        />
+      ) : null}
       <div className="mx-auto flex max-w-7xl flex-col gap-6 md:gap-8">
         <motion.section
           className="relative overflow-hidden rounded-[2rem] border border-cyan-300/15 bg-[linear-gradient(180deg,rgba(5,11,24,0.82),rgba(10,17,31,0.74))] p-6 shadow-[0_34px_120px_rgba(8,145,178,0.14)] backdrop-blur md:p-8"
@@ -524,6 +539,51 @@ export default function App() {
             </p>
           </div>
         </div>
+
+        {stats && !isYoutubeProfileMode ? (
+          <Section
+            title="Instant Recap"
+            subtitle="Turn this listening profile into a cinematic, story-style recap whenever you want."
+          >
+            <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+              <div>
+                <p className="max-w-2xl text-base text-slate-300">
+                  Launch a full-screen recap built from your total listening time, top song, artist orbit, genre DNA, mood signature, peak listening window, and passport finale.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    className="rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-rose-300 px-5 py-3 font-semibold text-slate-950 transition hover:brightness-105"
+                    onClick={() => setIsRecapOpen(true)}
+                    type="button"
+                  >
+                    Launch recap
+                  </button>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+                    7 slides
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
+                    autoplay on
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Open</p>
+                  <p className="mt-2 text-sm font-semibold text-white">Listening scale</p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Middle</p>
+                  <p className="mt-2 text-sm font-semibold text-white">Genre and mood</p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Finale</p>
+                  <p className="mt-2 text-sm font-semibold text-white">Passport card</p>
+                </div>
+              </div>
+            </div>
+          </Section>
+        ) : null}
 
         {passportData ? (
           <Section
