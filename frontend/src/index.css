@@ -5,10 +5,16 @@
 :root {
   color: #e2e8f0;
   background:
-    radial-gradient(circle at top, rgba(192, 38, 211, 0.22), transparent 28%),
-    radial-gradient(circle at right, rgba(236, 72, 153, 0.16), transparent 24%),
-    linear-gradient(180deg, #030014 0%, #0b0320 48%, #14091f 100%);
+    radial-gradient(circle at 12% 12%, rgba(45, 212, 191, 0.18), transparent 22%),
+    radial-gradient(circle at 86% 10%, rgba(251, 113, 133, 0.14), transparent 18%),
+    radial-gradient(circle at 78% 74%, rgba(245, 158, 11, 0.12), transparent 20%),
+    linear-gradient(180deg, #020712 0%, #07111f 36%, #0b1523 68%, #130b1d 100%);
   font-family: "Trebuchet MS", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -16,6 +22,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: transparent;
+  position: relative;
 }
 
 * {
@@ -24,4 +31,22 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black, transparent 85%);
+  opacity: 0.45;
+}
+
+::selection {
+  background: rgba(45, 212, 191, 0.28);
+  color: #f8fafc;
 }

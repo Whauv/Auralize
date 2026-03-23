@@ -9,21 +9,21 @@ import type { MusicPassportData } from "./MusicPassportCard";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 export const SHARE_PARAM = "passport";
-export const CHART_ACCENT = "#e879f9";
-export const CHART_ACCENT_SECONDARY = "#a855f7";
-export const CHART_ACCENT_TERTIARY = "#ec4899";
+export const CHART_ACCENT = "#2dd4bf";
+export const CHART_ACCENT_SECONDARY = "#fb7185";
+export const CHART_ACCENT_TERTIARY = "#f59e0b";
 export const PIE_COLORS = [
-  "#f472b6",
-  "#e879f9",
-  "#c084fc",
-  "#a855f7",
-  "#818cf8",
-  "#f9a8d4",
-  "#d946ef",
-  "#f0abfc",
+  "#2dd4bf",
+  "#34d399",
+  "#22d3ee",
+  "#38bdf8",
+  "#60a5fa",
+  "#f59e0b",
   "#fb7185",
-  "#8b5cf6",
-  "#6d28d9"
+  "#f97316",
+  "#f43f5e",
+  "#c084fc",
+  "#a78bfa"
 ];
 export const HEATMAP_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const HEATMAP_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
