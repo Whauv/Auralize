@@ -47,3 +47,5 @@ export type DashboardResponse = {
     url: string;
   } | null;
 };
+
+export type TimeframeOption = "all" | "30d" | "90d" | "365d";
