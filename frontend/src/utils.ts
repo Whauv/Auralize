@@ -279,9 +279,11 @@ export function buildPassportData(
       name: topArtistName,
       thumbnail: topArtistSong?.thumbnail ?? null
     },
-    topSongs: stats.topSongs.slice(0, 3).map((song) => ({
+    topSongs: stats.topSongs.slice(0, 10).map((song) => ({
+      videoId: song.videoId,
       title: song.title,
-      artist: song.artist
+      artist: song.artist,
+      thumbnail: song.thumbnail
     })),
     totalListeningHours: stats.totalListeningMinutes / 60,
     dominantGenre: genreBreakdown[0]?.genre ?? "Other",
