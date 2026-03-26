@@ -32,32 +32,55 @@ import {
   SongTick
 } from "./DashboardBits";
 import type {
+  AchievementBadge,
   DashboardResponse,
   GenreBreakdownEntry,
+  MemoryLaneEntry,
   MoodTimelineEntry,
+  PlaylistBundle,
+  PlaylistMode,
+  PersonaProfile,
   ParsedHistoryEntry,
+  PublicProfileSharePayload,
+  SmartInsight,
   StatsPayload,
-  TimeframeOption
+  TasteEvolutionPoint,
+  TimeframeOption,
+  UploadQualitySummary,
+  UploadResponse
 } from "./types";
 import {
   CHART_ACCENT,
   CHART_ACCENT_SECONDARY,
   CHART_ACCENT_TERTIARY,
   PIE_COLORS,
+  PROFILE_SHARE_PARAM,
   SHARE_PARAM,
+  buildAchievementBadges,
+  buildMemoryLane,
   buildPassportData,
+  buildPlaylistBundles,
+  buildPublicProfileSharePayload,
   buildGenreBreakdownFromHistory,
   buildMoodTimelineFromHistory,
+  buildPersonaProfile,
+  buildSmartInsights,
   buildStatsPayloadFromHistory,
   buildTakeoutDashboardResponse,
+  buildTasteEvolution,
   copyText,
+  decodePublicProfilePayload,
   decodeSharePayload,
+  downloadTextFile,
   filterHistoryByTimeframe,
+  filterHistoryBySearchAndFacets,
   formatHours,
   formatTimestamp,
+  getPublicProfileUrl,
   getShareUrl,
   parseLastFmUsername,
   parseYoutubeMusicProfileUrl,
+  playlistToText,
   postFile,
   postJson,
   TIMEFRAME_LABELS,
@@ -113,16 +136,35 @@ export default function App() {
   const [parsedHistory, setParsedHistory] = useState<ParsedHistoryEntry[]>([]);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [sharedPassport, setSharedPassport] = useState<MusicPassportData | null>(null);
+  const [sharedProfile, setSharedProfile] = useState<PublicProfileSharePayload | null>(null);
+  const [uploadQuality, setUploadQuality] = useState<UploadQualitySummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isRecapOpen, setIsRecapOpen] = useState(false);
   const [timeframe, setTimeframe] = useState<TimeframeOption>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState("");
+  const [selectedArtist, setSelectedArtist] = useState("");
+  const [selectedMood, setSelectedMood] = useState("");
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<PlaylistMode>("top");
   const passportRef = useRef<HTMLDivElement | null>(null);
   const passportExportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const publicProfileEncoded = new URLSearchParams(window.location.search).get(PROFILE_SHARE_PARAM);
+    if (publicProfileEncoded) {
+      try {
+        setSharedProfile(decodePublicProfilePayload(publicProfileEncoded));
+        setSharedPassport(null);
+        setError(null);
+      } catch {
+        setError("The shared public profile link is invalid or corrupted.");
+      }
+      return;
+    }
+
     const encoded = new URLSearchParams(window.location.search).get(SHARE_PARAM);
     if (!encoded) {
       return;
@@ -130,6 +172,7 @@ export default function App() {
 
     try {
       setSharedPassport(decodeSharePayload(encoded));
+      setSharedProfile(null);
       setError(null);
     } catch {
       setError("The shared music passport link is invalid or corrupted.");
@@ -137,13 +180,25 @@ export default function App() {
   }, []);
 
   const isYoutubeProfileMode = dashboard?.source === "youtube-profile";
-  const filteredEntries = useMemo(() => {
+  const timeframeEntries = useMemo(() => {
     if (!dashboard?.stats?.rawEnrichedHistory || isYoutubeProfileMode) {
       return [];
     }
 
     return filterHistoryByTimeframe(dashboard.stats.rawEnrichedHistory, timeframe);
   }, [dashboard?.stats?.rawEnrichedHistory, isYoutubeProfileMode, timeframe]);
+  const filteredEntries = useMemo(() => {
+    if (!timeframeEntries.length) {
+      return [];
+    }
+
+    return filterHistoryBySearchAndFacets(timeframeEntries, {
+      searchTerm,
+      genre: selectedGenre,
+      artist: selectedArtist,
+      mood: selectedMood
+    });
+  }, [timeframeEntries, searchTerm, selectedGenre, selectedArtist, selectedMood]);
 
   const stats = useMemo(() => {
     if (isYoutubeProfileMode) {
@@ -185,6 +240,91 @@ export default function App() {
 
     return buildPassportData(stats, genreBreakdown, moodTimeline);
   }, [dashboard?.source, stats, genreBreakdown, moodTimeline]);
+  const tasteEvolution = useMemo<TasteEvolutionPoint[]>(() => {
+    if (!stats || isYoutubeProfileMode) {
+      return [];
+    }
+
+    return buildTasteEvolution(stats.rawEnrichedHistory, timeframe);
+  }, [stats, isYoutubeProfileMode, timeframe]);
+  const smartInsights = useMemo<SmartInsight[]>(() => {
+    if (!stats || isYoutubeProfileMode) {
+      return [];
+    }
+
+    return buildSmartInsights(stats, genreBreakdown, moodTimeline);
+  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode]);
+  const personaProfile = useMemo<PersonaProfile | null>(() => {
+    if (!stats || isYoutubeProfileMode) {
+      return null;
+    }
+
+    return buildPersonaProfile(stats, genreBreakdown, moodTimeline);
+  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode]);
+  const memoryLane = useMemo<MemoryLaneEntry[]>(() => {
+    if (!stats || isYoutubeProfileMode) {
+      return [];
+    }
+
+    return buildMemoryLane(stats.rawEnrichedHistory);
+  }, [stats, isYoutubeProfileMode]);
+  const achievementBadges = useMemo<AchievementBadge[]>(() => {
+    if (!stats || isYoutubeProfileMode) {
+      return [];
+    }
+
+    return buildAchievementBadges(stats, genreBreakdown, moodTimeline);
+  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode]);
+  const artistOptions = useMemo(
+    () => Array.from(new Set(timeframeEntries.map((entry) => entry.artist))).sort((a, b) => a.localeCompare(b)),
+    [timeframeEntries]
+  );
+  const genreOptions = useMemo(
+    () =>
+      Array.from(new Set(timeframeEntries.map((entry) => buildGenreBreakdownFromHistory([entry])[0]?.genre ?? "Other"))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    [timeframeEntries]
+  );
+  const moodOptions = useMemo(
+    () => buildMoodTimelineFromHistory(timeframeEntries).map((entry) => entry.mood),
+    [timeframeEntries]
+  );
+  const playlistBundles = useMemo<PlaylistBundle[]>(() => {
+    if (!stats || isYoutubeProfileMode) {
+      return [];
+    }
+
+    return buildPlaylistBundles(stats.rawEnrichedHistory, moodTimeline);
+  }, [stats, moodTimeline, isYoutubeProfileMode]);
+  const selectedPlaylist = useMemo(
+    () => playlistBundles.find((bundle) => bundle.id === selectedPlaylistId) ?? playlistBundles[0] ?? null,
+    [playlistBundles, selectedPlaylistId]
+  );
+  const sourceLabel = useMemo(() => {
+    if (dashboard?.source === "lastfm") {
+      return "Last.fm Live Mode";
+    }
+    if (dashboard?.source === "youtube-profile") {
+      return "YouTube Music Public Profile";
+    }
+    return "Google Takeout";
+  }, [dashboard?.source]);
+  const publicProfilePayload = useMemo(() => {
+    if (!stats || !passportData) {
+      return null;
+    }
+
+    return buildPublicProfileSharePayload({
+      stats,
+      genreBreakdown,
+      moodTimeline,
+      passportData,
+      persona: personaProfile,
+      timeframeLabel: TIMEFRAME_LABELS[timeframe],
+      sourceLabel
+    });
+  }, [stats, passportData, genreBreakdown, moodTimeline, personaProfile, timeframe, sourceLabel]);
 
   async function handleExportAsImage() {
     const exportNode = passportExportRef.current ?? passportRef.current;
@@ -232,6 +372,28 @@ export default function App() {
   async function handleCopyShareableLink(payload: MusicPassportData) {
     await copyText(getShareUrl(payload));
     setActionMessage("Shareable passport link copied to clipboard.");
+  }
+
+  async function handleCopyPublicProfileLink(payload: PublicProfileSharePayload) {
+    await copyText(getPublicProfileUrl(payload));
+    setActionMessage("Public profile link copied to clipboard.");
+  }
+
+  function handleExportDashboardJson(payload: PublicProfileSharePayload) {
+    downloadTextFile(
+      "auralize-dashboard-summary.json",
+      JSON.stringify(payload, null, 2),
+      "application/json"
+    );
+    setActionMessage("Dashboard summary exported as JSON.");
+  }
+
+  function handleExportPlaylist(bundle: PlaylistBundle) {
+    downloadTextFile(
+      `${bundle.id}-playlist.txt`,
+      playlistToText(bundle)
+    );
+    setActionMessage(`${bundle.title} exported as a playlist text file.`);
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -282,6 +444,7 @@ export default function App() {
       });
       setDashboard(payload);
       setParsedHistory([]);
+      setUploadQuality(null);
       setIsRecapOpen(false);
       setTimeframe("all");
       return;
@@ -293,8 +456,9 @@ export default function App() {
       return;
     }
 
-    const uploadPayload = await postFile<ParsedHistoryEntry[]>("/upload", selectedFile);
-    setParsedHistory(uploadPayload);
+    const uploadPayload = await postFile<UploadResponse>("/upload", selectedFile);
+    setParsedHistory(uploadPayload.entries);
+    setUploadQuality(uploadPayload.quality);
 
     const [statsPayload, genrePayload, moodPayload] = await Promise.all([
       postFile<StatsPayload>("/stats", selectedFile),
@@ -319,6 +483,7 @@ export default function App() {
     const payload = await postJson<DashboardResponse>("/lastfm", { username });
     setDashboard(payload);
     setParsedHistory([]);
+    setUploadQuality(null);
     setIsRecapOpen(false);
     setTimeframe("all");
   }
@@ -337,14 +502,112 @@ export default function App() {
       }
 
       setSharedPassport(null);
+      setSharedProfile(null);
       window.history.replaceState({}, "", window.location.pathname);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Request failed.");
       setParsedHistory([]);
       setDashboard(null);
+      setUploadQuality(null);
     } finally {
       setIsUploading(false);
     }
+  }
+
+  if (sharedProfile) {
+    return (
+      <main className="relative isolate min-h-screen px-4 py-8 text-slate-100 md:px-6">
+        <motion.div className="scroll-glow" style={{ scaleX: progressScale }} />
+        <AmbientMusicScene />
+        <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-8">
+          <motion.section
+            className="rounded-[2rem] border border-[#1E293B] bg-[#111827] p-6 md:p-8 backdrop-blur"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+          >
+            <p className="text-sm uppercase tracking-[0.35em] text-[#F59E0B]">
+              Public Listening Profile
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
+              {sharedProfile.timeframeLabel} listening snapshot
+            </h1>
+            <p className="mt-3 max-w-2xl text-[#9CA3AF]">
+              Shared from Auralize as a read-only profile page for {sharedProfile.sourceLabel}.
+            </p>
+          </motion.section>
+
+          <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <Section
+              title="Profile Summary"
+              subtitle="A quick read on the listening identity inside this shared snapshot."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top Artist</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">
+                    {sharedProfile.passport.topArtist.name}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Listening Time</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">
+                    {sharedProfile.passport.totalListeningHours.toFixed(1)} hrs
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Dominant Genre</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">
+                    {sharedProfile.passport.dominantGenre}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Dominant Mood</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">
+                    {sharedProfile.passport.dominantMood}
+                  </p>
+                </div>
+              </div>
+              {sharedProfile.persona ? (
+                <div className="mt-5 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Persona</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">
+                    {sharedProfile.persona.title}
+                  </p>
+                  <p className="mt-2 text-sm text-[#9CA3AF]">
+                    {sharedProfile.persona.subtitle}
+                  </p>
+                </div>
+              ) : null}
+            </Section>
+
+            <Section
+              title="Top Songs"
+              subtitle="The tracks that define this shared listening profile."
+            >
+              <div className="grid gap-3">
+                {sharedProfile.stats.topSongs.slice(0, 6).map((song) => (
+                  <article
+                    key={song.videoId}
+                    className="flex items-center gap-4 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4"
+                  >
+                    {song.thumbnail ? (
+                      <img src={song.thumbnail} alt={song.title} className="h-16 w-16 rounded-2xl object-cover" />
+                    ) : (
+                      <div className="h-16 w-16 rounded-2xl bg-[#D4A853]/10" />
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="truncate text-lg font-semibold text-white">{song.title}</h3>
+                      <p className="truncate text-sm text-[#9CA3AF]">{song.artist}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </Section>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (sharedPassport) {
@@ -680,6 +943,106 @@ export default function App() {
           </Section>
         ) : null}
 
+        {uploadQuality?.warnings.length ? (
+          <Section
+            title="Data Quality"
+            subtitle="Auralize detected a few signals worth keeping in mind while reading this dashboard."
+          >
+            <div className="grid gap-3">
+              {uploadQuality.warnings.map((warning) => (
+                <div
+                  key={warning}
+                  className="rounded-[1.4rem] border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-sm text-amber-100"
+                >
+                  {warning}
+                </div>
+              ))}
+            </div>
+          </Section>
+        ) : null}
+
+        {stats && !isYoutubeProfileMode ? (
+          <Section
+            title="Search And Filters"
+            subtitle="Slice the dashboard by song search, artist, genre, or mood and let the rest of the page update with it."
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <label className="grid gap-2">
+                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Search</span>
+                <input
+                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none placeholder:text-[#9CA3AF] focus:border-[#67C3C0]"
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Song, artist, tag"
+                  type="text"
+                  value={searchTerm}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Genre</span>
+                <select
+                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#67C3C0]"
+                  onChange={(event) => setSelectedGenre(event.target.value)}
+                  value={selectedGenre}
+                >
+                  <option value="">All genres</option>
+                  {genreOptions.map((genre) => (
+                    <option key={genre} value={genre}>
+                      {genre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Artist</span>
+                <select
+                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#67C3C0]"
+                  onChange={(event) => setSelectedArtist(event.target.value)}
+                  value={selectedArtist}
+                >
+                  <option value="">All artists</option>
+                  {artistOptions.map((artist) => (
+                    <option key={artist} value={artist}>
+                      {artist}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Mood</span>
+                <select
+                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#67C3C0]"
+                  onChange={(event) => setSelectedMood(event.target.value)}
+                  value={selectedMood}
+                >
+                  <option value="">All moods</option>
+                  {moodOptions.map((mood) => (
+                    <option key={mood} value={mood}>
+                      {mood}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <span className="rounded-full border border-[#1E293B] bg-[#0F172A] px-4 py-2 text-sm text-[#9CA3AF]">
+                {filteredEntries.length} songs in current filtered view
+              </span>
+              <button
+                className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedGenre("");
+                  setSelectedArtist("");
+                  setSelectedMood("");
+                }}
+                type="button"
+              >
+                Clear filters
+              </button>
+            </div>
+          </Section>
+        ) : null}
+
         {stats && !isYoutubeProfileMode ? (
           <Section
             title="Instant Recap"
@@ -723,6 +1086,123 @@ export default function App() {
               </div>
             </div>
           </Section>
+        ) : null}
+
+        {stats && !isYoutubeProfileMode ? (
+          <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+            <Section
+              title="Playlist Generator"
+              subtitle="Turn the current filtered snapshot into reusable listening sets."
+            >
+              <div className="flex flex-wrap gap-3">
+                {playlistBundles.map((bundle) => (
+                  <button
+                    key={bundle.id}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      selectedPlaylistId === bundle.id
+                        ? "border border-[#67C3C0] bg-[#67C3C0] text-slate-950"
+                        : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#67C3C0] hover:bg-[#182234]"
+                    }`}
+                    onClick={() => setSelectedPlaylistId(bundle.id)}
+                    type="button"
+                  >
+                    {bundle.title}
+                  </button>
+                ))}
+              </div>
+
+              {selectedPlaylist ? (
+                <div className="mt-5 grid gap-4">
+                  <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                    <h3 className="text-2xl font-semibold text-white">{selectedPlaylist.title}</h3>
+                    <p className="mt-2 text-sm text-[#9CA3AF]">
+                      {selectedPlaylist.description}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        className="rounded-full border border-[#E4A94B] bg-[#E4A94B] px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-[#F0D080]"
+                        onClick={() => handleExportPlaylist(selectedPlaylist)}
+                        type="button"
+                      >
+                        Export playlist
+                      </button>
+                      <button
+                        className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                        onClick={() =>
+                          void copyText(
+                            selectedPlaylist.tracks.map((track) => track.url).join("\n")
+                          ).then(() => setActionMessage(`${selectedPlaylist.title} links copied.`))
+                        }
+                        type="button"
+                      >
+                        Copy track links
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid gap-3">
+                    {selectedPlaylist.tracks.slice(0, 6).map((track, index) => (
+                      <article
+                        key={track.videoId}
+                        className="flex items-center gap-4 rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] p-4"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#67C3C0]/10 text-sm font-semibold text-[#67C3C0]">
+                          {index + 1}
+                        </div>
+                        {track.thumbnail ? (
+                          <img src={track.thumbnail} alt={track.title} className="h-14 w-14 rounded-2xl object-cover" />
+                        ) : (
+                          <div className="h-14 w-14 rounded-2xl bg-[#67C3C0]/10" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-semibold text-white">{track.title}</p>
+                          <p className="truncate text-sm text-[#9CA3AF]">{track.artist}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </Section>
+
+            <Section
+              title="Export Studio"
+              subtitle="Package the current view as a profile link, PNG, or structured file."
+            >
+              <div className="grid gap-3">
+                <button
+                  className="rounded-[1.4rem] border border-[#E4A94B] bg-[#E4A94B] px-5 py-4 text-left font-semibold text-slate-950 transition hover:bg-[#F0D080]"
+                  onClick={() => void handleExportAsImage()}
+                  type="button"
+                >
+                  Export passport PNG
+                </button>
+                <button
+                  className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                  onClick={() => passportData && void handleCopyShareableLink(passportData)}
+                  type="button"
+                >
+                  Copy passport card link
+                </button>
+                <button
+                  className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                  onClick={() => publicProfilePayload && void handleCopyPublicProfileLink(publicProfilePayload)}
+                  type="button"
+                >
+                  Copy public profile link
+                </button>
+                <button
+                  className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                  onClick={() => publicProfilePayload && handleExportDashboardJson(publicProfilePayload)}
+                  type="button"
+                >
+                  Export dashboard summary JSON
+                </button>
+                {actionMessage ? (
+                  <p className="pt-2 text-sm text-[#9CA3AF]">{actionMessage}</p>
+                ) : null}
+              </div>
+            </Section>
+          </div>
         ) : null}
 
         {passportData ? (
@@ -1021,6 +1501,144 @@ export default function App() {
             >
               <ListeningHeatmap entries={heatmapEntries} />
             </Section>
+
+            <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+              <Section
+                title="Persona Engine"
+                subtitle="Auralize distills your listening habits into one profile identity."
+              >
+                {personaProfile ? (
+                  <div className="grid gap-4">
+                    <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                      <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                        Listening Persona
+                      </p>
+                      <h3 className="mt-3 text-3xl font-semibold text-white">
+                        {personaProfile.title}
+                      </h3>
+                      <p className="mt-3 text-sm text-[#9CA3AF]">
+                        {personaProfile.subtitle}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {personaProfile.traits.map((trait) => (
+                        <span
+                          key={trait}
+                          className="rounded-full border border-[#D4A853]/15 bg-[#D4A853]/10 px-4 py-2 text-sm text-[#F0D080]"
+                        >
+                          {trait}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </Section>
+
+              <Section
+                title="Smart Insights"
+                subtitle="A few high-signal takeaways pulled from your timing, repetition, and taste patterns."
+              >
+                <div className="grid gap-3">
+                  {smartInsights.map((insight) => (
+                    <article
+                      key={insight.title}
+                      className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4"
+                    >
+                      <h3 className="text-lg font-semibold text-white">{insight.title}</h3>
+                      <p className="mt-2 text-sm text-[#9CA3AF]">{insight.body}</p>
+                    </article>
+                  ))}
+                </div>
+              </Section>
+            </div>
+
+            <Section
+              title="Taste Evolution"
+              subtitle="A compact arc showing how your dominant sound shifted across recent listening windows."
+            >
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {tasteEvolution.map((point) => (
+                  <article
+                    key={`${point.label}-${point.topArtist}`}
+                    className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5"
+                  >
+                    <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                      {point.label}
+                    </p>
+                    <p className="mt-3 text-2xl font-semibold text-white">
+                      {point.topGenre}
+                    </p>
+                    <p className="mt-2 text-sm text-[#9CA3AF]">
+                      {point.topArtist} led this phase.
+                    </p>
+                    <p className="mt-4 text-sm text-[#67C3C0]">
+                      {point.playCount} plays in this window
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </Section>
+
+            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <Section
+                title="Memory Lane"
+                subtitle="Songs that have been with you the longest in the current listening snapshot."
+              >
+                <div className="grid gap-3">
+                  {memoryLane.map((entry) => (
+                    <article
+                      key={`${entry.videoId}-${entry.firstPlayed}`}
+                      className="flex items-center gap-4 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4"
+                    >
+                      {entry.thumbnail ? (
+                        <img
+                          src={entry.thumbnail}
+                          alt={entry.title}
+                          className="h-16 w-16 rounded-2xl object-cover"
+                        />
+                      ) : (
+                        <div className="h-16 w-16 rounded-2xl bg-[#D4A853]/10" />
+                      )}
+                      <div className="min-w-0">
+                        <h3 className="truncate text-lg font-semibold text-white">
+                          {entry.title}
+                        </h3>
+                        <p className="truncate text-sm text-[#9CA3AF]">{entry.artist}</p>
+                        <p className="mt-2 text-xs text-[#F0D080]">
+                          First heard {formatTimestamp(entry.firstPlayed)}
+                        </p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </Section>
+
+              <Section
+                title="Achievement Badges"
+                subtitle="Milestones and listening tendencies earned from your current archive."
+              >
+                <div className="grid gap-3">
+                  {achievementBadges.map((badge) => {
+                    const toneClasses =
+                      badge.tone === "teal"
+                        ? "border-[#67C3C0]/20 bg-[#67C3C0]/10 text-[#8AD4C7]"
+                        : badge.tone === "ember"
+                          ? "border-[#D97757]/20 bg-[#D97757]/10 text-[#F1B29D]"
+                          : "border-[#D4A853]/20 bg-[#D4A853]/10 text-[#F0D080]";
+
+                    return (
+                      <article
+                        key={badge.title}
+                        className={`rounded-[1.5rem] border p-4 ${toneClasses}`}
+                      >
+                        <h3 className="text-lg font-semibold">{badge.title}</h3>
+                        <p className="mt-2 text-sm text-[#E5E7EB]">{badge.description}</p>
+                      </article>
+                    );
+                  })}
+                </div>
+              </Section>
+            </div>
 
             <Section
               title="Recent Parsed History"

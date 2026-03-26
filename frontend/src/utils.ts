@@ -1,15 +1,24 @@
 import type {
+  AchievementBadge,
   DashboardResponse,
   EnrichedHistoryEntry,
   GenreBreakdownEntry,
+  MemoryLaneEntry,
   MoodTimelineEntry,
+  PlaylistBundle,
+  PlaylistTrack,
+  PersonaProfile,
+  PublicProfileSharePayload,
+  SmartInsight,
   StatsPayload,
+  TasteEvolutionPoint,
   TimeframeOption
 } from "./types";
 import type { MusicPassportData } from "./MusicPassportCard";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 export const SHARE_PARAM = "passport";
+export const PROFILE_SHARE_PARAM = "profile";
 export const CHART_ACCENT = "#67C3C0";
 export const CHART_ACCENT_SECONDARY = "#E4A94B";
 export const CHART_ACCENT_TERTIARY = "#D97757";
@@ -159,6 +168,25 @@ export function getShareUrl(payload: MusicPassportData): string {
   return url.toString();
 }
 
+export function encodePublicProfilePayload(payload: PublicProfileSharePayload): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+  return window.btoa(binary);
+}
+
+export function decodePublicProfilePayload(value: string): PublicProfileSharePayload {
+  const binary = window.atob(value);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as PublicProfileSharePayload;
+}
+
+export function getPublicProfileUrl(payload: PublicProfileSharePayload): string {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(SHARE_PARAM);
+  url.searchParams.set(PROFILE_SHARE_PARAM, encodePublicProfilePayload(payload));
+  return url.toString();
+}
+
 export async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
@@ -171,6 +199,16 @@ export async function copyText(value: string): Promise<void> {
   input.select();
   document.execCommand("copy");
   document.body.removeChild(input);
+}
+
+export function downloadTextFile(filename: string, content: string, mimeType = "text/plain"): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function postFile<T>(path: string, file: File): Promise<T> {
@@ -220,6 +258,159 @@ export function buildTakeoutDashboardResponse(
     genreBreakdown,
     moodTimeline,
     profileSummary: null,
+  };
+}
+
+export function filterHistoryBySearchAndFacets(
+  entries: EnrichedHistoryEntry[],
+  options: {
+    searchTerm: string;
+    genre: string;
+    artist: string;
+    mood: string;
+  }
+): EnrichedHistoryEntry[] {
+  const term = options.searchTerm.trim().toLowerCase();
+
+  return entries.filter((entry) => {
+    const genre = classifyGenre(entry.tags, entry.artist);
+    const matchesSearch =
+      !term ||
+      entry.title.toLowerCase().includes(term) ||
+      entry.artist.toLowerCase().includes(term) ||
+      entry.tags.some((tag) => tag.toLowerCase().includes(term));
+    const matchesGenre = !options.genre || genre === options.genre;
+    const matchesArtist = !options.artist || entry.artist === options.artist;
+    const matchesMood =
+      !options.mood ||
+      entry.timestamps.some((timestamp) => {
+        const hour = parseTimestampHour(timestamp);
+        if (hour === null) {
+          return false;
+        }
+        const mood =
+          hour <= 5
+            ? MOOD_LABELS.lateNight
+            : hour <= 10
+              ? MOOD_LABELS.morning
+              : hour <= 16
+                ? MOOD_LABELS.afternoon
+                : MOOD_LABELS.evening;
+        return mood === options.mood;
+      });
+
+    return matchesSearch && matchesGenre && matchesArtist && matchesMood;
+  });
+}
+
+export function buildPlaylistBundles(
+  entries: EnrichedHistoryEntry[],
+  moodTimeline: MoodTimelineEntry[]
+): PlaylistBundle[] {
+  const toTrack = (entry: EnrichedHistoryEntry): PlaylistTrack => ({
+    videoId: entry.videoId,
+    title: entry.title,
+    artist: entry.artist,
+    thumbnail: entry.thumbnail,
+    playCount: entry.playCount,
+    url: `https://music.youtube.com/watch?v=${entry.videoId}`
+  });
+
+  const topTracks = [...entries].sort((left, right) => right.playCount - left.playCount).slice(0, 15);
+  const lateNightTracks = entries
+    .filter((entry) =>
+      entry.timestamps.some((timestamp) => {
+        const hour = parseTimestampHour(timestamp);
+        return hour !== null && hour <= 5;
+      })
+    )
+    .sort((left, right) => right.playCount - left.playCount)
+    .slice(0, 12);
+  const focusTracks = entries
+    .filter((entry) =>
+      entry.timestamps.some((timestamp) => {
+        const hour = parseTimestampHour(timestamp);
+        return hour !== null && hour >= 11 && hour <= 16;
+      })
+    )
+    .sort((left, right) => right.playCount - left.playCount)
+    .slice(0, 12);
+  const discoveryTracks = [...entries]
+    .sort((left, right) => left.playCount - right.playCount || left.title.localeCompare(right.title))
+    .slice(0, 12)
+    .reverse();
+
+  const dominantMood = moodTimeline[0]?.mood ?? "Unknown mood";
+
+  return [
+    {
+      id: "top",
+      title: "Top Rotation",
+      description: "Your most-played tracks, ready to replay in one run.",
+      tracks: topTracks.map(toTrack)
+    },
+    {
+      id: "late-night",
+      title: "Late Night Loop",
+      description: "Built from your after-dark listening habits.",
+      tracks: (lateNightTracks.length ? lateNightTracks : topTracks).map(toTrack)
+    },
+    {
+      id: "focus",
+      title: "Focus Set",
+      description: `Anchored by your ${dominantMood.toLowerCase()} listening patterns.`,
+      tracks: (focusTracks.length ? focusTracks : topTracks).map(toTrack)
+    },
+    {
+      id: "discovery",
+      title: "Hidden Cuts",
+      description: "A lighter rotation of lower-play gems from your archive.",
+      tracks: discoveryTracks.map(toTrack)
+    }
+  ];
+}
+
+export function playlistToText(bundle: PlaylistBundle): string {
+  return [
+    `${bundle.title}`,
+    `${bundle.description}`,
+    "",
+    ...bundle.tracks.map(
+      (track, index) => `${index + 1}. ${track.title} - ${track.artist} (${track.url})`
+    )
+  ].join("\n");
+}
+
+export function buildPublicProfileSharePayload(args: {
+  stats: StatsPayload;
+  genreBreakdown: GenreBreakdownEntry[];
+  moodTimeline: MoodTimelineEntry[];
+  passportData: MusicPassportData | null;
+  persona: PersonaProfile | null;
+  timeframeLabel: string;
+  sourceLabel: string;
+}): PublicProfileSharePayload {
+  const { stats, genreBreakdown, moodTimeline, passportData, persona, timeframeLabel, sourceLabel } = args;
+
+  return {
+    sourceLabel,
+    timeframeLabel,
+    generatedAt: new Date().toISOString(),
+    stats: {
+      topSongs: stats.topSongs.slice(0, 10),
+      topArtists: stats.topArtists.slice(0, 10),
+      totalListeningMinutes: stats.totalListeningMinutes
+    },
+    genreBreakdown: genreBreakdown.slice(0, 6),
+    moodTimeline,
+    passport: {
+      topArtist: passportData?.topArtist ?? { name: stats.topArtists[0]?.artist ?? "Unknown artist", thumbnail: null },
+      totalListeningHours: passportData?.totalListeningHours ?? stats.totalListeningMinutes / 60,
+      dominantGenre: passportData?.dominantGenre ?? genreBreakdown[0]?.genre ?? "Other",
+      dominantMood: passportData?.dominantMood ?? moodTimeline[0]?.mood ?? "Unknown",
+      listeningStreakDays: passportData?.listeningStreakDays ?? getLongestListeningStreak(stats.rawEnrichedHistory)
+    },
+    persona
   };
 }
 
@@ -487,4 +678,250 @@ export function buildPassportData(
       count: entry.count
     }))
   };
+}
+
+export function buildTasteEvolution(
+  entries: EnrichedHistoryEntry[],
+  timeframe: TimeframeOption
+): TasteEvolutionPoint[] {
+  const bucketMap = new Map<
+    string,
+    { label: string; playCount: number; genres: Record<string, number>; artists: Record<string, number> }
+  >();
+
+  entries.forEach((entry) => {
+    entry.timestamps.forEach((timestamp) => {
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      const { key, label } = getEvolutionBucket(date, timeframe);
+      const current =
+        bucketMap.get(key) ??
+        { label, playCount: 0, genres: {}, artists: {} };
+
+      current.playCount += 1;
+      const genre = classifyGenre(entry.tags, entry.artist);
+      current.genres[genre] = (current.genres[genre] ?? 0) + 1;
+      current.artists[entry.artist] = (current.artists[entry.artist] ?? 0) + 1;
+      bucketMap.set(key, current);
+    });
+  });
+
+  return Array.from(bucketMap.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(-6)
+    .map(([, bucket]) => ({
+      label: bucket.label,
+      topGenre: getTopKey(bucket.genres) ?? "Other",
+      topArtist: getTopKey(bucket.artists) ?? "Unknown artist",
+      playCount: bucket.playCount
+    }));
+}
+
+export function buildSmartInsights(
+  stats: StatsPayload,
+  genreBreakdown: GenreBreakdownEntry[],
+  moodTimeline: MoodTimelineEntry[]
+): SmartInsight[] {
+  const peak = findPeakListeningWindow(stats.rawEnrichedHistory);
+  const longestTrack = [...stats.topSongs].sort((left, right) => right.playCount - left.playCount)[0];
+  const dominantGenre = genreBreakdown[0]?.genre ?? "Other";
+  const dominantMood = moodTimeline[0]?.mood ?? "Unknown";
+  const diversityScore = genreBreakdown.length;
+
+  return [
+    {
+      title: "Peak Listening Window",
+      body: `${peak.day} around ${peak.hour}:00 is when your listening energy spikes the most.`
+    },
+    {
+      title: "Core Taste Signal",
+      body: `${dominantGenre} leads your archive, while ${dominantMood.toLowerCase()} listening sets the emotional tone.`
+    },
+    {
+      title: "Replay Center",
+      body: `${longestTrack?.title ?? "Your top song"} is the strongest repeat magnet in this snapshot.`
+    },
+    {
+      title: "Range Check",
+      body:
+        diversityScore >= 6
+          ? "Your listening spreads across a wide genre mix instead of orbiting a single lane."
+          : "Your taste is tight and focused, with a few genres doing most of the heavy lifting."
+    }
+  ];
+}
+
+export function buildPersonaProfile(
+  stats: StatsPayload,
+  genreBreakdown: GenreBreakdownEntry[],
+  moodTimeline: MoodTimelineEntry[]
+): PersonaProfile {
+  const dominantGenre = genreBreakdown[0]?.genre ?? "Other";
+  const dominantMood = moodTimeline[0]?.mood ?? "Unknown";
+  const peak = findPeakListeningWindow(stats.rawEnrichedHistory);
+
+  const moodTag =
+    dominantMood === "Chill/Nocturnal"
+      ? "Midnight"
+      : dominantMood === "Energized"
+        ? "Daybreak"
+        : dominantMood === "Focused"
+          ? "Signal"
+          : "Velvet";
+
+  const genreTag =
+    dominantGenre === "Hip-Hop"
+      ? "Rhythm Pilot"
+      : dominantGenre === "Electronic"
+        ? "Circuit Walker"
+        : dominantGenre === "Rock"
+          ? "Voltage Driver"
+          : dominantGenre === "Lo-fi"
+            ? "Cloud Drifter"
+            : dominantGenre === "Indie"
+              ? "Scene Collector"
+              : dominantGenre === "Pop"
+                ? "Hook Hunter"
+                : `${dominantGenre} Oracle`;
+
+  return {
+    title: `${moodTag} ${genreTag}`,
+    subtitle: `You listen like someone building atmosphere first and letting songs define the room after that.`,
+    traits: [
+      `${dominantGenre} dominant`,
+      `${dominantMood} leaning`,
+      `${peak.day} ${peak.hour}:00 peak hour`
+    ]
+  };
+}
+
+export function buildMemoryLane(entries: EnrichedHistoryEntry[]): MemoryLaneEntry[] {
+  return entries
+    .map((entry) => {
+      const sorted = [...entry.timestamps]
+        .map((timestamp) => new Date(timestamp))
+        .filter((date) => !Number.isNaN(date.getTime()))
+        .sort((left, right) => left.getTime() - right.getTime());
+
+      if (!sorted.length) {
+        return null;
+      }
+
+      return {
+        videoId: entry.videoId,
+        title: entry.title,
+        artist: entry.artist,
+        thumbnail: entry.thumbnail,
+        playCount: entry.playCount,
+        firstPlayed: sorted[0].toISOString()
+      };
+    })
+    .filter((entry): entry is MemoryLaneEntry => entry !== null)
+    .sort((left, right) => left.firstPlayed.localeCompare(right.firstPlayed))
+    .slice(0, 5);
+}
+
+export function buildAchievementBadges(
+  stats: StatsPayload,
+  genreBreakdown: GenreBreakdownEntry[],
+  moodTimeline: MoodTimelineEntry[]
+): AchievementBadge[] {
+  const totalPlays = stats.rawEnrichedHistory.reduce((sum, entry) => sum + entry.playCount, 0);
+  const streak = getLongestListeningStreak(stats.rawEnrichedHistory);
+  const dominantMood = moodTimeline[0]?.mood ?? "Unknown";
+  const dominantGenre = genreBreakdown[0]?.genre ?? "Other";
+  const badges: AchievementBadge[] = [];
+
+  if (streak >= 7) {
+    badges.push({
+      title: "Streak Keeper",
+      description: `${streak} straight days of listens kept your momentum alive.`,
+      tone: "gold"
+    });
+  }
+
+  if (genreBreakdown.length >= 6) {
+    badges.push({
+      title: "Palette Explorer",
+      description: `You spread your plays across ${genreBreakdown.length} active genres.`,
+      tone: "teal"
+    });
+  }
+
+  if (dominantMood === "Chill/Nocturnal") {
+    badges.push({
+      title: "Night Owl",
+      description: "Your strongest listening habits come alive after dark.",
+      tone: "ember"
+    });
+  }
+
+  if (stats.topSongs[0]?.playCount >= 20) {
+    badges.push({
+      title: "Replay Royalty",
+      description: `${stats.topSongs[0]?.title ?? "Your top song"} became a serious repeat obsession.`,
+      tone: "gold"
+    });
+  }
+
+  if (totalPlays >= 250) {
+    badges.push({
+      title: `${dominantGenre} Loyalist`,
+      description: `You kept returning to ${dominantGenre} as your strongest lane.`,
+      tone: "teal"
+    });
+  }
+
+  return badges.slice(0, 5);
+}
+
+function getEvolutionBucket(date: Date, timeframe: TimeframeOption): { key: string; label: string } {
+  if (timeframe === "30d") {
+    const week = Math.max(1, Math.ceil(date.getDate() / 7));
+    return { key: `${date.getFullYear()}-${date.getMonth()}-w${week}`, label: `Week ${week}` };
+  }
+
+  if (timeframe === "90d") {
+    const month = date.toLocaleString(undefined, { month: "short" });
+    return { key: `${date.getFullYear()}-${date.getMonth()}`, label: month };
+  }
+
+  return {
+    key: `${date.getFullYear()}-${date.getMonth()}`,
+    label: date.toLocaleString(undefined, { month: "short" })
+  };
+}
+
+function getTopKey(values: Record<string, number>): string | null {
+  const entry = Object.entries(values).sort(
+    (left, right) => right[1] - left[1] || left[0].localeCompare(right[0])
+  )[0];
+  return entry?.[0] ?? null;
+}
+
+function findPeakListeningWindow(entries: EnrichedHistoryEntry[]): { day: string; hour: number } {
+  const counts = new Map<string, number>();
+
+  entries.forEach((entry) => {
+    entry.timestamps.forEach((timestamp) => {
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      const key = `${HEATMAP_DAYS[date.getDay()]}-${date.getHours()}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+  });
+
+  const winner = Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0];
+  if (!winner) {
+    return { day: "Sun", hour: 0 };
+  }
+
+  const [day, hour] = winner[0].split("-");
+  return { day, hour: Number(hour) };
 }
