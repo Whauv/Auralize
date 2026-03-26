@@ -43,12 +43,59 @@ class YouTubeProfileRequest(BaseModel):
     url: str
 
 
+def build_quality_summary(
+    payload: list[dict[str, Any]], parsed_history: list[dict[str, Any]]
+) -> dict[str, Any]:
+    total_entries = len(payload)
+    usable_entries = len(parsed_history)
+    search_entries = sum(
+        1
+        for entry in payload
+        if isinstance(entry, dict) and str(entry.get("title") or "").startswith("Searched for ")
+    )
+    music_headers = sum(
+        1
+        for entry in payload
+        if isinstance(entry, dict) and str(entry.get("header") or "").strip().lower() == "youtube music"
+    )
+    warnings: list[str] = []
+
+    if total_entries == 0:
+        warnings.append("This file is empty, so there is no listening data to analyze.")
+    if usable_entries == 0:
+        warnings.append(
+            "No playable YouTube Music watch entries were found. This export may mostly contain searches or standard YouTube activity."
+        )
+    elif usable_entries < 10:
+        warnings.append(
+            "Only a small number of playable music entries were found, so the dashboard may feel sparse."
+        )
+
+    if total_entries and search_entries / total_entries >= 0.35:
+        warnings.append(
+            "A large share of this export looks like search history, which can limit the quality of the music analysis."
+        )
+
+    if total_entries and usable_entries / total_entries < 0.15:
+        warnings.append(
+            "Only a small portion of the export could be used as playable YouTube Music history."
+        )
+
+    return {
+        "totalEntries": total_entries,
+        "usableEntries": usable_entries,
+        "searchEntries": search_entries,
+        "youtubeMusicEntries": music_headers,
+        "warnings": warnings,
+    }
+
+
 @app.get("/api/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
-async def parse_upload_file(file: UploadFile) -> list[dict[str, Any]]:
+async def parse_upload_file(file: UploadFile) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if file.content_type not in {"application/json", "text/json", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="Please upload a JSON file.")
 
@@ -64,12 +111,14 @@ async def parse_upload_file(file: UploadFile) -> list[dict[str, Any]]:
             detail="Expected watch-history.json to contain a JSON array of history entries.",
         )
 
-    return parse_watch_history(payload)
+    parsed_history = parse_watch_history(payload)
+    return parsed_history, build_quality_summary(payload, parsed_history)
 
 
 @app.post("/api/upload")
-async def upload_watch_history(file: UploadFile = File(...)) -> list[dict[str, Any]]:
-    return await parse_upload_file(file)
+async def upload_watch_history(file: UploadFile = File(...)) -> dict[str, Any]:
+    parsed_history, quality = await parse_upload_file(file)
+    return {"entries": parsed_history, "quality": quality}
 
 
 def load_enriched_history(parsed_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -93,7 +142,7 @@ def load_enriched_history(parsed_history: list[dict[str, Any]]) -> list[dict[str
 
 @app.post("/api/stats")
 async def get_watch_history_stats(file: UploadFile = File(...)) -> dict[str, Any]:
-    parsed_history = await parse_upload_file(file)
+    parsed_history, _quality = await parse_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_stats_payload(enriched_history)
 
@@ -161,13 +210,13 @@ async def get_youtube_profile_dashboard(payload: YouTubeProfileRequest) -> dict[
 
 @app.post("/api/genre-breakdown")
 async def get_genre_breakdown(file: UploadFile = File(...)) -> list[dict[str, Any]]:
-    parsed_history = await parse_upload_file(file)
+    parsed_history, _quality = await parse_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_genre_breakdown(enriched_history)
 
 
 @app.post("/api/mood-timeline")
 async def get_mood_timeline(file: UploadFile = File(...)) -> list[dict[str, Any]]:
-    parsed_history = await parse_upload_file(file)
+    parsed_history, _quality = await parse_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_mood_timeline(enriched_history)
