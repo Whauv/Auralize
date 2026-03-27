@@ -9,6 +9,8 @@ import type {
   PlaylistTrack,
   PersonaProfile,
   PublicProfileSharePayload,
+  RecapVariant,
+  SavedSession,
   SmartInsight,
   StatsPayload,
   TasteEvolutionPoint,
@@ -43,6 +45,15 @@ export const TIMEFRAME_LABELS: Record<TimeframeOption, string> = {
   "30d": "Last 30 days",
   "90d": "Last 90 days",
   "365d": "Last year"
+};
+
+export const TIMEFRAME_COMPARE_OPTIONS: TimeframeOption[] = ["30d", "90d", "365d", "all"];
+
+export const RECAP_VARIANT_LABELS: Record<RecapVariant, string> = {
+  auto: "Auto",
+  annual: "Annual",
+  monthly: "Monthly",
+  seasonal: "Seasonal"
 };
 
 const ISO_8601_DURATION_PATTERN =
@@ -414,6 +425,27 @@ export function buildPublicProfileSharePayload(args: {
   };
 }
 
+export function buildSavedSession(args: {
+  dashboard: DashboardResponse;
+  timeframe: TimeframeOption;
+  sourceLabel: string;
+}): SavedSession {
+  const { dashboard, timeframe, sourceLabel } = args;
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name:
+      dashboard.source === "lastfm"
+        ? `${dashboard.username ?? "Last.fm"} snapshot`
+        : dashboard.source === "youtube-profile"
+          ? `${dashboard.profileSummary?.name ?? "Profile"} preview`
+          : `Takeout ${TIMEFRAME_LABELS[timeframe]}`,
+    savedAt: new Date().toISOString(),
+    sourceLabel,
+    timeframe,
+    dashboard
+  };
+}
+
 export function filterHistoryByTimeframe(
   entries: EnrichedHistoryEntry[],
   timeframe: TimeframeOption
@@ -621,7 +653,7 @@ function durationToMinutes(duration: string): number {
   return (hours * 3600 + minutes * 60 + seconds) / 60;
 }
 
-function classifyGenre(tags: string[], artist: string): string {
+export function classifyGenre(tags: string[], artist: string): string {
   const normalizedTags = tags.map((tag) => tag.toLowerCase());
   for (const [genre, keywords] of Object.entries(GENRE_KEYWORDS)) {
     if (normalizedTags.some((tag) => keywords.some((keyword) => tag.includes(keyword)))) {
@@ -876,6 +908,69 @@ export function buildAchievementBadges(
   }
 
   return badges.slice(0, 5);
+}
+
+export function buildArtistClusters(entries: EnrichedHistoryEntry[]) {
+  const grouped = new Map<
+    string,
+    {
+      artist: string;
+      playCount: number;
+      thumbnail: string | null;
+      genres: Record<string, number>;
+      songs: string[];
+    }
+  >();
+
+  entries.forEach((entry) => {
+    const current =
+      grouped.get(entry.artist) ??
+      {
+        artist: entry.artist,
+        playCount: 0,
+        thumbnail: entry.thumbnail,
+        genres: {},
+        songs: []
+      };
+
+    const genre = classifyGenre(entry.tags, entry.artist);
+    current.playCount += entry.playCount;
+    current.thumbnail = current.thumbnail ?? entry.thumbnail;
+    current.genres[genre] = (current.genres[genre] ?? 0) + entry.playCount;
+    current.songs.push(entry.title);
+    grouped.set(entry.artist, current);
+  });
+
+  const ranked = Array.from(grouped.values())
+    .sort((left, right) => right.playCount - left.playCount || left.artist.localeCompare(right.artist))
+    .slice(0, 8);
+  const totalPlays = ranked.reduce((sum, entry) => sum + entry.playCount, 0) || 1;
+
+  const nodes = ranked.map((entry, index) => {
+    const angle = (Math.PI * 2 * index) / Math.max(ranked.length, 1) - Math.PI / 2;
+    const radius = index === 0 ? 0 : index % 2 === 0 ? 102 : 132;
+    return {
+      id: entry.artist,
+      artist: entry.artist,
+      playCount: entry.playCount,
+      thumbnail: entry.thumbnail,
+      genre: getTopKey(entry.genres) ?? "Other",
+      songs: entry.songs.slice(0, 3),
+      size: 56 + (entry.playCount / totalPlays) * 116,
+      x: 180 + Math.cos(angle) * radius,
+      y: 180 + Math.sin(angle) * radius
+    };
+  });
+
+  const hub = nodes[0] ?? null;
+  const links = nodes.slice(1).map((node) => ({
+    source: hub?.id ?? node.id,
+    target: node.id,
+    sharedGenre:
+      node.genre === hub?.genre ? node.genre : [hub?.genre, node.genre].filter(Boolean).join(" / ")
+  }));
+
+  return { nodes, links };
 }
 
 function getEvolutionBucket(date: Date, timeframe: TimeframeOption): { key: string; label: string } {

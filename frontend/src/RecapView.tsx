@@ -4,6 +4,8 @@ import type {
   EnrichedHistoryEntry,
   GenreBreakdownEntry,
   MoodTimelineEntry,
+  RecapThemePack,
+  RecapVariant,
   StatsPayload
 } from "./types";
 import {
@@ -11,6 +13,7 @@ import {
   formatHours,
   getLongestListeningStreak
 } from "./utils";
+import { ArtistClusterWeb } from "./DashboardBits";
 import { MusicPassportCard, type MusicPassportData } from "./MusicPassportCard";
 
 type RecapSlide = {
@@ -24,6 +27,36 @@ type RecapSlide = {
   render: () => React.ReactElement;
 };
 
+const RECAP_THEME_PACKS: Record<
+  RecapThemePack,
+  { accent: string; accentSoft: string; glowA: string; glowB: string; glowC: string; kicker: string }
+> = {
+  "gold-noir": {
+    accent: "#D4A853",
+    accentSoft: "#F0D080",
+    glowA: "#D4A853",
+    glowB: "#7C3A5A",
+    glowC: "#3B1F5E",
+    kicker: "Gold noir theme"
+  },
+  "violet-dusk": {
+    accent: "#C084FC",
+    accentSoft: "#E9D5FF",
+    glowA: "#7C3AED",
+    glowB: "#C026D3",
+    glowC: "#F59E0B",
+    kicker: "Violet dusk theme"
+  },
+  "teal-afterglow": {
+    accent: "#5EEAD4",
+    accentSoft: "#CCFBF1",
+    glowA: "#14B8A6",
+    glowB: "#0F766E",
+    glowC: "#D4A853",
+    kicker: "Teal afterglow theme"
+  }
+};
+
 export function RecapView({
   isOpen,
   onClose,
@@ -31,7 +64,9 @@ export function RecapView({
   genreBreakdown,
   moodTimeline,
   passportData,
-  timeframeLabel
+  timeframeLabel,
+  themePack,
+  variant
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -40,6 +75,8 @@ export function RecapView({
   moodTimeline: MoodTimelineEntry[];
   passportData: MusicPassportData | null;
   timeframeLabel: string;
+  themePack: RecapThemePack;
+  variant: RecapVariant;
 }) {
   const topSong = stats.topSongs[0] ?? null;
   const topArtist = stats.topArtists[0] ?? null;
@@ -51,6 +88,8 @@ export function RecapView({
   const slides = buildSlides({
     stats,
     timeframeLabel,
+    themePack,
+    variant,
     genreBreakdown,
     topSong,
     topArtist,
@@ -63,7 +102,9 @@ export function RecapView({
 
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [isAutoplay, setIsAutoplay] = React.useState(true);
-  const slideDurationSeconds = 6.8;
+  const [audioMode, setAudioMode] = React.useState(true);
+  const slideDurationSeconds = 9.5;
+  const theme = RECAP_THEME_PACKS[themePack];
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -71,6 +112,7 @@ export function RecapView({
     }
     setCurrentIndex(0);
     setIsAutoplay(true);
+    setAudioMode(true);
   }, [isOpen]);
 
   React.useEffect(() => {
@@ -151,6 +193,17 @@ export function RecapView({
                   {isAutoplay ? "Pause autoplay" : "Resume autoplay"}
                 </button>
                 <button
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    audioMode
+                      ? "border-[#D4A853] bg-[#D4A853] text-slate-950 hover:bg-[#F0D080]"
+                      : "border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
+                  }`}
+                  onClick={() => setAudioMode((value) => !value)}
+                  type="button"
+                >
+                  {audioMode ? "Audio mode on" : "Audio mode off"}
+                </button>
+                <button
                   className="rounded-full bg-[#D4A853] px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-[#F0D080]"
                   onClick={onClose}
                   type="button"
@@ -182,9 +235,9 @@ export function RecapView({
             <div className="grid gap-5 xl:grid-cols-[1.1fr_0.49fr]">
               <div className={`relative min-h-[640px] overflow-hidden rounded-[2.25rem] border border-[#1E293B] ${activeSlide.palette} p-6 shadow-[0_35px_140px_rgba(2,6,23,0.42)] md:p-8`}>
                 <div className="pointer-events-none absolute inset-0">
-                  <div className="absolute -left-16 top-8 h-44 w-44 rounded-full bg-[#D4A853]/10 blur-3xl" />
-                  <div className="absolute right-0 top-0 h-52 w-52 rounded-full bg-[#7C3A5A]/14 blur-3xl" />
-                  <div className="absolute bottom-8 left-1/3 h-40 w-40 rounded-full bg-[#5D3C7D]/12 blur-3xl" />
+                  <div className="absolute -left-16 top-8 h-44 w-44 rounded-full blur-3xl" style={{ backgroundColor: `${theme.glowA}22` }} />
+                  <div className="absolute right-0 top-0 h-52 w-52 rounded-full blur-3xl" style={{ backgroundColor: `${theme.glowB}22` }} />
+                  <div className="absolute bottom-8 left-1/3 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: `${theme.glowC}20` }} />
                 </div>
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -198,14 +251,14 @@ export function RecapView({
                     <div className="max-w-3xl">
                       <div className="mb-4 flex items-center justify-between gap-3">
                         <p className="text-[10px] uppercase tracking-[0.35em] text-[#F59E0B]">
-                          chapter {currentIndex + 1}
+                          {activeSlide.eyebrow}
                         </p>
                         <div className="rounded-full border border-[#1E293B] bg-[#111827]/80 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-[#9CA3AF]">
                           slide {currentIndex + 1}/{slides.length}
                         </div>
                       </div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-[#F0D080]">
-                        {activeSlide.eyebrow}
+                      <p className="text-xs uppercase tracking-[0.35em]" style={{ color: theme.accentSoft }}>
+                        {theme.kicker}
                       </p>
                       <h3 className="font-display mt-4 text-4xl font-black leading-[0.95] tracking-[-0.03em] text-white md:text-6xl">
                         {activeSlide.title}
@@ -223,6 +276,7 @@ export function RecapView({
                       <RecapSoundtrack
                         isAutoplay={isAutoplay}
                         song={activeSlide.soundtrack}
+                        accent={theme.accent}
                       />
                     </div>
                   </motion.div>
@@ -279,9 +333,11 @@ export function RecapView({
                   </button>
                 </div>
 
-                <div className="mt-5">
-                  <EmbeddedTrackPlayer song={activeSlide.soundtrack} />
-                </div>
+                {audioMode ? (
+                  <div className="mt-5">
+                    <EmbeddedTrackPlayer song={activeSlide.soundtrack} />
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -294,6 +350,8 @@ export function RecapView({
 function buildSlides({
   stats,
   timeframeLabel,
+  themePack,
+  variant,
   genreBreakdown,
   topSong,
   topArtist,
@@ -305,6 +363,8 @@ function buildSlides({
 }: {
   stats: StatsPayload;
   timeframeLabel: string;
+  themePack: RecapThemePack;
+  variant: RecapVariant;
   genreBreakdown: GenreBreakdownEntry[];
   topSong: EnrichedHistoryEntry | null;
   topArtist: StatsPayload["topArtists"][number] | null;
@@ -317,16 +377,28 @@ function buildSlides({
   const totalHours = formatHours(stats.totalListeningMinutes);
   const soundtrackPool = stats.topSongs.length ? stats.topSongs : stats.rawEnrichedHistory.slice(0, 5);
   const timeframeKey = getTimeframeKey(timeframeLabel);
-  const seasonalFavorites = buildSeasonalFavorites(stats.rawEnrichedHistory, timeframeKey);
-  const trendSeries = buildTrendSeries(stats.rawEnrichedHistory, timeframeKey);
+  const activeVariant = variant === "auto" ? variantFromTimeframe(timeframeKey) : variant;
+  const seasonalFavorites = buildSeasonalFavorites(
+    stats.rawEnrichedHistory,
+    activeVariant,
+    timeframeKey
+  );
+  const trendSeries = buildTrendSeries(stats.rawEnrichedHistory, activeVariant, timeframeKey);
+  const themed = makeThemePalette(themePack);
   const timeframeDescriptor =
     timeframeKey === "30d"
       ? "this month"
       : timeframeKey === "90d"
         ? "this quarter"
-        : timeframeKey === "365d"
-          ? "this year"
-          : "your archive";
+      : timeframeKey === "365d"
+        ? "this year"
+        : "your archive";
+  const storyLabel =
+    activeVariant === "annual"
+      ? "year in sound"
+      : activeVariant === "monthly"
+        ? "month in motion"
+        : "season in color";
 
   return [
     {
@@ -334,10 +406,9 @@ function buildSlides({
       navLabel: "Welcome",
       eyebrow: "Opening / Title Card",
       title: `${timeframeLabel} recap`,
-      subtitle: `This is your Auralize story for ${timeframeLabel.toLowerCase()}, built from ${stats.rawEnrichedHistory.length} songs, ${stats.topArtists.length} artists, and the habits behind every replay.`,
+      subtitle: `This ${storyLabel} was built from ${stats.rawEnrichedHistory.length} songs, ${stats.topArtists.length} artists, and the habits behind every replay.`,
       soundtrack: soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(124,58,90,0.18),transparent_28%),linear-gradient(135deg,#0A0F1E_0%,#231536_42%,#4A2741_100%)]",
+      palette: themed[0],
       render: () => (
         <div className="grid h-full gap-6 md:grid-cols-[1.2fr_0.8fr]">
           <div className="flex flex-col justify-end">
@@ -363,8 +434,7 @@ function buildSlides({
       title: topArtist?.artist ?? "Unknown artist",
       subtitle: `No one shaped ${timeframeDescriptor} more. ${topArtist?.artist ?? "Unknown artist"} led the way with ${topArtist?.playCount ?? 0} plays.`,
       soundtrack: topArtistSong ?? soundtrackPool[1] ?? soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_top_right,rgba(212,168,83,0.18),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(124,58,90,0.18),transparent_26%),linear-gradient(135deg,#10162A_0%,#2B1B41_52%,#4B263D_100%)]",
+      palette: themed[1],
       render: () => (
         <div className="grid h-full gap-6 md:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-[2rem] border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
@@ -404,14 +474,23 @@ function buildSlides({
       )
     },
     {
+      id: "artist-web",
+      navLabel: "Artist Web",
+      eyebrow: "Artist Web / Listening Cluster",
+      title: "Your listening formed a constellation",
+      subtitle: `The artists in your orbit don't sit alone. This cluster view shows which names carried the most weight across ${timeframeDescriptor}.`,
+      soundtrack: topArtistSong ?? soundtrackPool[1] ?? soundtrackPool[0] ?? null,
+      palette: themed[2],
+      render: () => <ArtistClusterWeb entries={stats.rawEnrichedHistory} />
+    },
+    {
       id: "song",
       navLabel: "Top Song",
       eyebrow: "Top Song",
       title: topSong?.title ?? "Your anthem",
       subtitle: `${topSong?.artist ?? "Unknown artist"} became your defining song, stacking up ${topSong?.playCount ?? 0} plays in ${timeframeDescriptor}.`,
       soundtrack: topSong,
-      palette:
-        "bg-[radial-gradient(circle_at_top_left,rgba(240,208,128,0.16),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(142,94,162,0.18),transparent_26%),linear-gradient(140deg,#120F22_0%,#2A1A41_56%,#121C31_100%)]",
+      palette: themed[3],
       render: () => (
         <div className="grid h-full gap-6 md:grid-cols-[0.88fr_1.12fr]">
           <div className="rounded-[2rem] border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
@@ -440,8 +519,7 @@ function buildSlides({
       title: `${dominantGenre?.genre ?? "Other"} x ${dominantMood?.mood ?? "Unknown"}`,
       subtitle: `Your musical center of gravity lives at the intersection of ${dominantGenre?.genre ?? "Other"} and ${dominantMood?.mood ?? "Unknown"}.`,
       soundtrack: soundtrackPool[2] ?? soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_22%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.14),transparent_22%),linear-gradient(140deg,#0D1327_0%,#29193F_58%,#4A273B_100%)]",
+      palette: themed[4],
       render: () => (
         <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-[1.8rem] border border-white/10 bg-black/18 p-6">
@@ -467,7 +545,12 @@ function buildSlides({
       id: "trend",
       navLabel: timeframeKey === "30d" ? "Weekly Trend" : timeframeKey === "90d" ? "Quarterly Trend" : "Trend",
       eyebrow: "Listening Trend",
-      title: "Your listening had a shape",
+      title:
+        activeVariant === "monthly"
+          ? "Your month moved in scenes"
+          : activeVariant === "seasonal"
+            ? "Your season had a pulse"
+            : "Your listening had a shape",
       subtitle:
         timeframeKey === "30d"
           ? "Over the last 30 days, your weekly rhythm moved fast and hit hard."
@@ -477,8 +560,7 @@ function buildSlides({
               ? "Across the last year, your habits rose and cooled with the calendar."
               : "Across your archive, your listening built long-term peaks and valleys.",
       soundtrack: soundtrackPool[3] ?? soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_bottom_left,rgba(196,107,123,0.22),transparent_24%),radial-gradient(circle_at_top_right,rgba(212,168,83,0.18),transparent_24%),linear-gradient(135deg,#151027_0%,#2A1A41_55%,#0F172A_100%)]",
+      palette: themed[5],
       render: () => (
         <MonthlyTrend trend={trendSeries} />
       )
@@ -490,8 +572,7 @@ function buildSlides({
       title: "The visuals in your rotation",
       subtitle: "These tracks didn't just live in your ears. They owned screen time too.",
       soundtrack: soundtrackPool[4] ?? soundtrackPool[1] ?? soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(196,107,123,0.18),transparent_22%),linear-gradient(135deg,#0B1120_0%,#221739_58%,#4A2741_100%)]",
+      palette: themed[6],
       render: () => <VideoMosaic songs={stats.topSongs.slice(0, 4)} />
     },
     {
@@ -511,8 +592,7 @@ function buildSlides({
             ? "Across the last 90 days, different tracks rose as the energy shifted."
             : "Different songs surfaced as the calendar turned. These are the tracks that defined each season.",
       soundtrack: soundtrackPool[4] ?? soundtrackPool[1] ?? soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(196,107,123,0.18),transparent_22%),linear-gradient(135deg,#0B1120_0%,#221739_58%,#4A2741_100%)]",
+      palette: themed[7],
       render: () => <SeasonFavorites favorites={seasonalFavorites} />
     },
     {
@@ -522,8 +602,7 @@ function buildSlides({
       title: `${stats.totalListeningMinutes.toFixed(0)} minutes`,
       subtitle: `Underneath the highlights, your summary points to ${stats.rawEnrichedHistory.length} unique songs, a ${heatmapSummary.day} peak window, and a ${getLongestStreakLabel(stats.rawEnrichedHistory)} streak.`,
       soundtrack: soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(124,58,90,0.18),transparent_22%),linear-gradient(135deg,#0A0F1E_0%,#221739_45%,#4A2741_100%)]",
+      palette: themed[8],
       render: () => (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricPill label="Total Minutes" value={`${stats.totalListeningMinutes.toFixed(0)}`} />
@@ -540,8 +619,7 @@ function buildSlides({
       title: "Share your passport",
       subtitle: "Your recap ends with a poster-style identity card you can export or send anywhere.",
       soundtrack: soundtrackPool[0] ?? null,
-      palette:
-        "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(124,58,90,0.18),transparent_22%),linear-gradient(135deg,#0A0F1E_0%,#221739_45%,#4A2741_100%)]",
+      palette: themed[0],
       render: () => (
         <div className="flex h-full items-center justify-center overflow-x-auto">
           {passportData ? <MusicPassportCard data={passportData} /> : <div />}
@@ -657,10 +735,12 @@ function SeasonFavorites({
 
 function RecapSoundtrack({
   isAutoplay,
-  song
+  song,
+  accent
 }: {
   isAutoplay: boolean;
   song: EnrichedHistoryEntry | null;
+  accent: string;
 }) {
   if (!song) {
     return null;
@@ -689,13 +769,14 @@ function RecapSoundtrack({
           <div className="mt-3 h-1.5 w-full max-w-[320px] overflow-hidden rounded-full bg-[#1E293B]">
             <motion.div
               key={`${song.videoId}-${isAutoplay ? "auto" : "manual"}`}
-              className="h-full rounded-full bg-[linear-gradient(90deg,#D4A853_0%,#F0D080_56%,#C46B7B_100%)]"
+              className="h-full rounded-full"
               initial={{ width: "12%" }}
               animate={{ width: isAutoplay ? "100%" : "42%" }}
               transition={{
-                duration: isAutoplay ? 6.8 : 0.45,
+                duration: isAutoplay ? 9.5 : 0.45,
                 ease: "linear"
               }}
+              style={{ background: `linear-gradient(90deg, ${accent} 0%, #F0D080 56%, #C46B7B 100%)` }}
             />
           </div>
         </div>
@@ -798,7 +879,11 @@ function buildPeakListeningSummary(entries: EnrichedHistoryEntry[]) {
   return peak;
 }
 
-function buildTrendSeries(entries: EnrichedHistoryEntry[], timeframeKey: "all" | "30d" | "90d" | "365d") {
+function buildTrendSeries(
+  entries: EnrichedHistoryEntry[],
+  variant: "annual" | "monthly" | "seasonal",
+  timeframeKey: "all" | "30d" | "90d" | "365d"
+) {
   const counts = new Map<string, number>();
 
   entries.forEach((entry) => {
@@ -809,27 +894,30 @@ function buildTrendSeries(entries: EnrichedHistoryEntry[], timeframeKey: "all" |
       }
 
       const label =
-        timeframeKey === "30d"
+        variant === "monthly"
           ? `W${Math.max(1, Math.ceil(date.getDate() / 7))}`
           : timeframeKey === "90d"
             ? date.toLocaleString(undefined, { month: "short" })
-            : date.toLocaleString(undefined, { month: "short" });
+            : variant === "seasonal"
+              ? getSeason(date)
+              : date.toLocaleString(undefined, { month: "short" });
       counts.set(label, (counts.get(label) ?? 0) + 1);
     });
   });
 
   return Array.from(counts.entries())
     .map(([label, count]) => ({ label, count }))
-    .sort((left, right) => right.count - left.count)
+    .sort((left, right) => left.label.localeCompare(right.label))
     .slice(0, 6);
 }
 
 function buildSeasonalFavorites(
   entries: EnrichedHistoryEntry[],
+  variant: "annual" | "monthly" | "seasonal",
   timeframeKey: "all" | "30d" | "90d" | "365d"
 ) {
   const buckets =
-    timeframeKey === "30d"
+    variant === "monthly"
       ? (["Early", "Mid", "Late"] as const)
       : timeframeKey === "90d"
         ? (["Phase 1", "Phase 2", "Phase 3"] as const)
@@ -846,7 +934,7 @@ function buildSeasonalFavorites(
         return;
       }
 
-      const bucket = getTimeBucket(date, timeframeKey);
+      const bucket = getTimeBucket(date, variant, timeframeKey);
       totals[bucket].set(entry.videoId, (totals[bucket].get(entry.videoId) ?? 0) + 1);
     });
   });
@@ -874,8 +962,64 @@ function getSeason(date: Date) {
   return "Fall";
 }
 
-function getTimeBucket(date: Date, timeframeKey: "all" | "30d" | "90d" | "365d") {
+function variantFromTimeframe(timeframeKey: "all" | "30d" | "90d" | "365d"): "annual" | "monthly" | "seasonal" {
   if (timeframeKey === "30d") {
+    return "monthly";
+  }
+  if (timeframeKey === "365d" || timeframeKey === "all") {
+    return "annual";
+  }
+  return "seasonal";
+}
+
+function makeThemePalette(themePack: RecapThemePack) {
+  if (themePack === "violet-dusk") {
+    return [
+      "bg-[radial-gradient(circle_at_top_left,rgba(192,132,252,0.18),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(236,72,153,0.16),transparent_28%),linear-gradient(135deg,#0E1024_0%,#2C1456_42%,#4A1D52_100%)]",
+      "bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.18),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.18),transparent_26%),linear-gradient(135deg,#14112B_0%,#33135D_52%,#5B2050_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(244,114,182,0.16),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.18),transparent_26%),linear-gradient(140deg,#120F22_0%,#341A5C_56%,#1B1A3A_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(192,132,252,0.16),transparent_22%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_22%),linear-gradient(140deg,#121629_0%,#3A1A4A_58%,#512544_100%)]",
+      "bg-[radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.2),transparent_24%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.16),transparent_24%),linear-gradient(135deg,#151027_0%,#3A195F_55%,#201A3D_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(236,72,153,0.18),transparent_22%),linear-gradient(135deg,#0F1329_0%,#31184F_58%,#4C1F4B_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.18),transparent_22%),linear-gradient(135deg,#10162A_0%,#30184A_58%,#4F2247_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(236,72,153,0.16),transparent_22%),linear-gradient(135deg,#0D1122_0%,#2A1649_45%,#4A1F48_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(244,114,182,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(192,132,252,0.16),transparent_22%),linear-gradient(135deg,#0D1122_0%,#2A1649_45%,#4A1F48_100%)]"
+    ] as const;
+  }
+
+  if (themePack === "teal-afterglow") {
+    return [
+      "bg-[radial-gradient(circle_at_top_left,rgba(94,234,212,0.18),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(212,168,83,0.14),transparent_28%),linear-gradient(135deg,#08111A_0%,#123843_42%,#1D2A3D_100%)]",
+      "bg-[radial-gradient(circle_at_top_right,rgba(45,212,191,0.18),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(15,118,110,0.18),transparent_26%),linear-gradient(135deg,#0A1522_0%,#10424A_52%,#20324A_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(94,234,212,0.16),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.16),transparent_26%),linear-gradient(140deg,#09131D_0%,#123A4A_56%,#152536_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_22%),radial-gradient(circle_at_top_right,rgba(212,168,83,0.1),transparent_22%),linear-gradient(140deg,#0C1623_0%,#143840_58%,#1F3245_100%)]",
+      "bg-[radial-gradient(circle_at_bottom_left,rgba(94,234,212,0.18),transparent_24%),radial-gradient(circle_at_top_right,rgba(212,168,83,0.16),transparent_24%),linear-gradient(135deg,#0A1723_0%,#133F47_55%,#172738_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(94,234,212,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(20,184,166,0.18),transparent_22%),linear-gradient(135deg,#0A1620_0%,#11333F_58%,#233046_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(212,168,83,0.16),transparent_22%),linear-gradient(135deg,#0A1520_0%,#10313A_58%,#233046_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(94,234,212,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(212,168,83,0.14),transparent_22%),linear-gradient(135deg,#08111A_0%,#14313E_45%,#223249_100%)]",
+      "bg-[radial-gradient(circle_at_top_left,rgba(94,234,212,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(15,118,110,0.16),transparent_22%),linear-gradient(135deg,#08111A_0%,#14313E_45%,#223249_100%)]"
+    ] as const;
+  }
+
+  return [
+    "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(124,58,90,0.18),transparent_28%),linear-gradient(135deg,#0A0F1E_0%,#231536_42%,#4A2741_100%)]",
+    "bg-[radial-gradient(circle_at_top_right,rgba(212,168,83,0.18),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(124,58,90,0.18),transparent_26%),linear-gradient(135deg,#10162A_0%,#2B1B41_52%,#4B263D_100%)]",
+    "bg-[radial-gradient(circle_at_top_left,rgba(240,208,128,0.16),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(142,94,162,0.18),transparent_26%),linear-gradient(140deg,#120F22_0%,#2A1A41_56%,#121C31_100%)]",
+    "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_22%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.14),transparent_22%),linear-gradient(140deg,#0D1327_0%,#29193F_58%,#4A273B_100%)]",
+    "bg-[radial-gradient(circle_at_bottom_left,rgba(196,107,123,0.22),transparent_24%),radial-gradient(circle_at_top_right,rgba(212,168,83,0.18),transparent_24%),linear-gradient(135deg,#151027_0%,#2A1A41_55%,#0F172A_100%)]",
+    "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(196,107,123,0.18),transparent_22%),linear-gradient(135deg,#0B1120_0%,#221739_58%,#4A2741_100%)]",
+    "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(196,107,123,0.18),transparent_22%),linear-gradient(135deg,#0B1120_0%,#221739_58%,#4A2741_100%)]",
+    "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(124,58,90,0.18),transparent_22%),linear-gradient(135deg,#0A0F1E_0%,#221739_45%,#4A2741_100%)]",
+    "bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(124,58,90,0.18),transparent_22%),linear-gradient(135deg,#0A0F1E_0%,#221739_45%,#4A2741_100%)]"
+  ] as const;
+}
+
+function getTimeBucket(
+  date: Date,
+  variant: "annual" | "monthly" | "seasonal",
+  timeframeKey: "all" | "30d" | "90d" | "365d"
+) {
+  if (variant === "monthly") {
     if (date.getDate() <= 10) {
       return "Early";
     }
