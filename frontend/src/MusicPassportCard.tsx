@@ -44,13 +44,13 @@ export function MusicPassportCard({
   );
 
   return (
-    <div className="relative w-[840px] overflow-hidden rounded-[2.5rem] border border-white/12 bg-[linear-gradient(160deg,#04111f_0%,#0e213c_38%,#1b2d4f_62%,#251236_100%)] p-8 text-white shadow-[0_34px_160px_rgba(3,7,18,0.48)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.22),transparent_28%),radial-gradient(circle_at_85%_14%,rgba(251,113,133,0.18),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.16),transparent_24%)]" />
+    <div className="relative w-[840px] overflow-hidden border border-white/12 bg-[linear-gradient(155deg,#090c13_0%,#121018_44%,#1b1621_72%,#24181a_100%)] p-8 text-white shadow-[0_34px_160px_rgba(3,7,18,0.48)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_28%),radial-gradient(circle_at_85%_14%,rgba(255,255,255,0.05),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(196,107,123,0.12),transparent_24%)]" />
 
       <div className="relative z-10 flex flex-col gap-7">
         <div className="flex items-start justify-between gap-8">
           <div className="max-w-[420px]">
-            <p className="text-xs uppercase tracking-[0.42em] text-cyan-100/70">
+            <p className="text-xs uppercase tracking-[0.42em] text-white/55">
               Music Passport
             </p>
             <h2 className="font-display mt-3 text-[4.2rem] font-black leading-[0.9] tracking-[-0.03em]">
@@ -60,7 +60,7 @@ export function MusicPassportCard({
               <span className="rounded-full border border-white/10 bg-white/12 px-4 py-2">
                 {data.dominantGenre}
               </span>
-              <span className="rounded-full border border-cyan-200/12 bg-cyan-300/10 px-4 py-2 text-cyan-50">
+              <span className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-white">
                 {data.dominantMood}
               </span>
               <span className="rounded-full border border-amber-200/12 bg-amber-300/12 px-4 py-2 text-amber-50">
@@ -70,7 +70,7 @@ export function MusicPassportCard({
           </div>
 
           <div className="w-[270px] rounded-[1.8rem] border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
-            <p className="text-[10px] uppercase tracking-[0.34em] text-cyan-100/65">
+            <p className="text-[10px] uppercase tracking-[0.34em] text-white/55">
               #1 Artist
             </p>
             <div className="mt-4 flex items-center gap-4">
@@ -99,7 +99,7 @@ export function MusicPassportCard({
           <div className="rounded-[1.9rem] border border-white/10 bg-black/18 p-6 backdrop-blur-sm">
             <div className="flex items-start justify-between gap-5">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.34em] text-cyan-100/65">
+                <p className="text-[10px] uppercase tracking-[0.34em] text-white/55">
                   Total Listening
                 </p>
                 <p className="mt-3 text-[4.5rem] font-black leading-[0.88]">
@@ -129,7 +129,7 @@ export function MusicPassportCard({
                     key={`${song.title}-${song.artist}`}
                     className="grid grid-cols-[46px_52px_minmax(0,1fr)] items-center gap-4 rounded-[1.3rem] border border-white/8 bg-white/7 px-4 py-3"
                   >
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/35 via-sky-300/25 to-rose-300/25 text-lg font-bold text-white">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-white/16 via-white/8 to-amber-300/18 text-lg font-bold text-white">
                       {index + 1}
                     </div>
                     {song.thumbnail ? (
@@ -157,7 +157,7 @@ export function MusicPassportCard({
             <div className="rounded-[1.9rem] border border-white/10 bg-black/22 p-6 backdrop-blur-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.34em] text-cyan-100/65">
+                  <p className="text-[10px] uppercase tracking-[0.34em] text-white/55">
                     Music Fingerprint
                   </p>
                   <p className="mt-2 text-lg text-white/72">Top 5 genres</p>
@@ -176,7 +176,7 @@ export function MusicPassportCard({
                     </div>
                     <div className="h-3 rounded-full bg-white/10">
                       <div
-                        className="h-3 rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-amber-300"
+                        className="h-3 rounded-full bg-gradient-to-r from-[#d4a853] via-[#d9b56a] to-[#c46b7b]"
                         style={{
                           width: getFingerprintWidth(entry.count, maxFingerprintCount),
                           opacity: 1 - index * 0.11

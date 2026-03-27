@@ -50,6 +50,10 @@ export type DashboardResponse = {
 
 export type TimeframeOption = "all" | "30d" | "90d" | "365d";
 
+export type RecapThemePack = "gold-noir" | "violet-dusk" | "teal-afterglow";
+
+export type RecapVariant = "auto" | "annual" | "monthly" | "seasonal";
+
 export type UploadQualitySummary = {
   totalEntries: number;
   usableEntries: number;
@@ -132,4 +136,13 @@ export type PublicProfileSharePayload = {
     listeningStreakDays: number;
   };
   persona?: PersonaProfile | null;
+};
+
+export type SavedSession = {
+  id: string;
+  name: string;
+  savedAt: string;
+  sourceLabel: string;
+  timeframe: TimeframeOption;
+  dashboard: DashboardResponse;
 };

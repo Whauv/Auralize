@@ -2,6 +2,9 @@ import {
   ChangeEvent,
   DragEvent,
   FormEvent,
+  Suspense,
+  lazy,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -22,8 +25,8 @@ import {
   YAxis
 } from "recharts";
 import { MusicPassportCard, type MusicPassportData } from "./MusicPassportCard";
-import { RecapView } from "./RecapView";
 import {
+  ArtistClusterWeb,
   ChartSkeleton,
   ChartTooltip,
   ListeningHeatmap,
@@ -42,6 +45,9 @@ import type {
   PersonaProfile,
   ParsedHistoryEntry,
   PublicProfileSharePayload,
+  RecapThemePack,
+  RecapVariant,
+  SavedSession,
   SmartInsight,
   StatsPayload,
   TasteEvolutionPoint,
@@ -50,10 +56,6 @@ import type {
   UploadResponse
 } from "./types";
 import {
-  CHART_ACCENT,
-  CHART_ACCENT_SECONDARY,
-  CHART_ACCENT_TERTIARY,
-  PIE_COLORS,
   PROFILE_SHARE_PARAM,
   SHARE_PARAM,
   buildAchievementBadges,
@@ -75,7 +77,6 @@ import {
   filterHistoryByTimeframe,
   filterHistoryBySearchAndFacets,
   formatHours,
-  formatTimestamp,
   getPublicProfileUrl,
   getShareUrl,
   parseLastFmUsername,
@@ -83,11 +84,98 @@ import {
   playlistToText,
   postFile,
   postJson,
+  RECAP_VARIANT_LABELS,
+  TIMEFRAME_COMPARE_OPTIONS,
   TIMEFRAME_LABELS,
+  buildSavedSession,
   truncateLabel
 } from "./utils";
 
 type SourceMode = "takeout" | "lastfm";
+type DashboardDensity = "simple" | "full";
+const RecapView = lazy(() =>
+  import("./RecapView").then((module) => ({ default: module.RecapView }))
+);
+const DashboardAdvancedSections = lazy(() =>
+  import("./DashboardAdvancedSections").then((module) => ({
+    default: module.DashboardAdvancedSections
+  }))
+);
+
+const DASHBOARD_THEME_PACKS: Record<
+  RecapThemePack,
+  {
+    pageBg: string;
+    panelBg: string;
+    panelAlt: string;
+    panelMuted: string;
+    panelBorder: string;
+    heading: string;
+    subtext: string;
+    accent: string;
+    accentSoft: string;
+    heroGradient: string;
+    heroGlow: string;
+    chartPrimary: string;
+    chartSecondary: string;
+    chartTertiary: string;
+    pieColors: string[];
+  }
+> = {
+  "gold-noir": {
+    pageBg: "#0A0F1E",
+    panelBg: "#111827",
+    panelAlt: "#0F172A",
+    panelMuted: "#1F2937",
+    panelBorder: "#1E293B",
+    heading: "#FFFFFF",
+    subtext: "#9CA3AF",
+    accent: "#D4A853",
+    accentSoft: "#F0D080",
+    heroGradient: "linear-gradient(135deg,#0E1626 0%,#2A1B32 52%,#6B4331 100%)",
+    heroGlow: "radial-gradient(circle_at_top_left,rgba(212,168,83,0.18),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(124,58,90,0.14),transparent_28%)",
+    chartPrimary: "#D4A853",
+    chartSecondary: "#C46B7B",
+    chartTertiary: "#8C6CD8",
+    pieColors: ["#D4A853", "#C46B7B", "#8C6CD8", "#F0D080", "#6B8A87", "#B97D3C"]
+  },
+  "violet-dusk": {
+    pageBg: "#090B18",
+    panelBg: "#14132A",
+    panelAlt: "#1B1837",
+    panelMuted: "#28224A",
+    panelBorder: "#312A59",
+    heading: "#FFFFFF",
+    subtext: "#B2AED1",
+    accent: "#C084FC",
+    accentSoft: "#E9D5FF",
+    heroGradient: "linear-gradient(135deg,#17152F 0%,#39205A 48%,#6A2A5C 100%)",
+    heroGlow: "radial-gradient(circle_at_top_left,rgba(192,132,252,0.2),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(236,72,153,0.16),transparent_28%)",
+    chartPrimary: "#C084FC",
+    chartSecondary: "#F472B6",
+    chartTertiary: "#F59E0B",
+    pieColors: ["#C084FC", "#F472B6", "#F59E0B", "#E9D5FF", "#A78BFA", "#FB7185"]
+  },
+  "teal-afterglow": {
+    pageBg: "#07121A",
+    panelBg: "#0F1F28",
+    panelAlt: "#122B36",
+    panelMuted: "#1C3A47",
+    panelBorder: "#224454",
+    heading: "#F8FAFC",
+    subtext: "#9FB7BE",
+    accent: "#5EEAD4",
+    accentSoft: "#CCFBF1",
+    heroGradient: "linear-gradient(135deg,#0B1822 0%,#123944 48%,#29515A 100%)",
+    heroGlow: "radial-gradient(circle_at_top_left,rgba(94,234,212,0.18),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(212,168,83,0.14),transparent_28%)",
+    chartPrimary: "#5EEAD4",
+    chartSecondary: "#2DD4BF",
+    chartTertiary: "#D4A853",
+    pieColors: ["#5EEAD4", "#2DD4BF", "#D4A853", "#CCFBF1", "#14B8A6", "#7DD3FC"]
+  }
+};
+const PREFERENCES_STORAGE_KEY = "auralize-dashboard-preferences";
+const SAVED_SESSIONS_STORAGE_KEY = "auralize-saved-sessions";
 
 function AmbientMusicScene() {
   return (
@@ -144,13 +232,20 @@ export default function App() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isRecapOpen, setIsRecapOpen] = useState(false);
   const [timeframe, setTimeframe] = useState<TimeframeOption>("all");
+  const [recapTheme, setRecapTheme] = useState<RecapThemePack>("gold-noir");
+  const [recapVariant, setRecapVariant] = useState<RecapVariant>("auto");
+  const [dashboardDensity, setDashboardDensity] = useState<DashboardDensity>("simple");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("");
   const [selectedArtist, setSelectedArtist] = useState("");
   const [selectedMood, setSelectedMood] = useState("");
-  const [selectedPlaylistId, setSelectedPlaylistId] = useState<PlaylistMode>("top");
+  const [selectedPlaylistId] = useState<PlaylistMode>("top");
+  const [compareTimeframe, setCompareTimeframe] = useState<TimeframeOption>("90d");
+  const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const passportRef = useRef<HTMLDivElement | null>(null);
   const passportExportRef = useRef<HTMLDivElement | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
   useEffect(() => {
     const publicProfileEncoded = new URLSearchParams(window.location.search).get(PROFILE_SHARE_PARAM);
@@ -179,6 +274,65 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+
+      const saved = JSON.parse(raw) as Partial<{
+        timeframe: TimeframeOption;
+        recapTheme: RecapThemePack;
+        recapVariant: RecapVariant;
+        dashboardDensity: DashboardDensity;
+      }>;
+
+      if (saved.timeframe) {
+        setTimeframe(saved.timeframe);
+      }
+      if (saved.recapTheme) {
+        setRecapTheme(saved.recapTheme);
+      }
+      if (saved.recapVariant) {
+        setRecapVariant(saved.recapVariant);
+      }
+      if (saved.dashboardDensity) {
+        setDashboardDensity(saved.dashboardDensity);
+      }
+    } catch {
+      window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SAVED_SESSIONS_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      setSavedSessions(JSON.parse(raw) as SavedSession[]);
+    } catch {
+      window.localStorage.removeItem(SAVED_SESSIONS_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({
+        timeframe,
+        recapTheme,
+        recapVariant,
+        dashboardDensity
+      })
+    );
+  }, [timeframe, recapTheme, recapVariant, dashboardDensity]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SAVED_SESSIONS_STORAGE_KEY, JSON.stringify(savedSessions));
+  }, [savedSessions]);
+
   const isYoutubeProfileMode = dashboard?.source === "youtube-profile";
   const timeframeEntries = useMemo(() => {
     if (!dashboard?.stats?.rawEnrichedHistory || isYoutubeProfileMode) {
@@ -193,12 +347,12 @@ export default function App() {
     }
 
     return filterHistoryBySearchAndFacets(timeframeEntries, {
-      searchTerm,
+      searchTerm: deferredSearchTerm,
       genre: selectedGenre,
       artist: selectedArtist,
       mood: selectedMood
     });
-  }, [timeframeEntries, searchTerm, selectedGenre, selectedArtist, selectedMood]);
+  }, [timeframeEntries, deferredSearchTerm, selectedGenre, selectedArtist, selectedMood]);
 
   const stats = useMemo(() => {
     if (isYoutubeProfileMode) {
@@ -310,6 +464,9 @@ export default function App() {
     }
     return "Google Takeout";
   }, [dashboard?.source]);
+  const dashboardTheme = useMemo(() => DASHBOARD_THEME_PACKS[recapTheme], [recapTheme]);
+  const isSimpleDashboard = dashboardDensity === "simple";
+  const shouldShowAdvancedInsights = stats && !isYoutubeProfileMode && dashboardDensity === "full";
   const publicProfilePayload = useMemo(() => {
     if (!stats || !passportData) {
       return null;
@@ -325,6 +482,61 @@ export default function App() {
       sourceLabel
     });
   }, [stats, passportData, genreBreakdown, moodTimeline, personaProfile, timeframe, sourceLabel]);
+  const comparisonEntries = useMemo(() => {
+    if (!dashboard?.stats?.rawEnrichedHistory || isYoutubeProfileMode) {
+      return [];
+    }
+
+    return filterHistoryByTimeframe(dashboard.stats.rawEnrichedHistory, compareTimeframe);
+  }, [dashboard?.stats?.rawEnrichedHistory, compareTimeframe, isYoutubeProfileMode]);
+  const comparisonStats = useMemo(() => {
+    if (!comparisonEntries.length || isYoutubeProfileMode) {
+      return null;
+    }
+    return buildStatsPayloadFromHistory(comparisonEntries);
+  }, [comparisonEntries, isYoutubeProfileMode]);
+  const comparisonGenreBreakdown = useMemo(() => {
+    if (!comparisonEntries.length || isYoutubeProfileMode) {
+      return [];
+    }
+    return buildGenreBreakdownFromHistory(comparisonEntries);
+  }, [comparisonEntries, isYoutubeProfileMode]);
+
+  function scrollToSection(sectionId: string) {
+    sectionRefs.current[sectionId]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  function handleSaveSession() {
+    if (!dashboard) {
+      return;
+    }
+
+    const session = buildSavedSession({
+      dashboard,
+      timeframe,
+      sourceLabel
+    });
+
+    setSavedSessions((current) => [session, ...current].slice(0, 8));
+    setActionMessage(`Saved session: ${session.name}`);
+  }
+
+  function handleRestoreSession(session: SavedSession) {
+    setDashboard(session.dashboard);
+    setTimeframe(session.timeframe);
+    setParsedHistory([]);
+    setUploadQuality(null);
+    setIsRecapOpen(false);
+    setActionMessage(`Restored session: ${session.name}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleDeleteSession(sessionId: string) {
+    setSavedSessions((current) => current.filter((session) => session.id !== sessionId));
+  }
 
   async function handleExportAsImage() {
     const exportNode = passportExportRef.current ?? passportRef.current;
@@ -678,39 +890,62 @@ export default function App() {
   }
 
   return (
-    <main className="relative isolate min-h-screen px-4 py-6 text-slate-100 md:px-6 lg:px-8">
+    <main
+      className="relative isolate min-h-screen px-4 py-6 text-slate-100 md:px-6 lg:px-8"
+      style={
+        {
+          backgroundColor: dashboardTheme.pageBg,
+          ["--panel-bg" as string]: dashboardTheme.panelBg,
+          ["--panel-alt" as string]: dashboardTheme.panelAlt,
+          ["--panel-muted" as string]: dashboardTheme.panelMuted,
+          ["--panel-border" as string]: dashboardTheme.panelBorder,
+          ["--heading" as string]: dashboardTheme.heading,
+          ["--subtext" as string]: dashboardTheme.subtext,
+          ["--accent" as string]: dashboardTheme.accent,
+          ["--accent-soft" as string]: dashboardTheme.accentSoft
+        } as Record<string, string>
+      }
+    >
       <motion.div className="scroll-glow" style={{ scaleX: progressScale }} />
       <AmbientMusicScene />
       {passportData ? (
         <div className="pointer-events-none fixed -left-[10000px] top-0 opacity-0">
-          <div ref={passportExportRef} className="w-fit bg-[#040b17] p-8">
+          <div ref={passportExportRef} className="w-fit bg-[#06070b]">
             <MusicPassportCard data={passportData} />
           </div>
         </div>
       ) : null}
       {stats && !isYoutubeProfileMode ? (
-        <RecapView
-          isOpen={isRecapOpen}
-          onClose={() => setIsRecapOpen(false)}
-          stats={stats}
-          genreBreakdown={genreBreakdown}
-          moodTimeline={moodTimeline}
-          passportData={passportData}
-          timeframeLabel={TIMEFRAME_LABELS[timeframe]}
-        />
+        <Suspense fallback={null}>
+          <RecapView
+            isOpen={isRecapOpen}
+            onClose={() => setIsRecapOpen(false)}
+            stats={stats}
+            genreBreakdown={genreBreakdown}
+            moodTimeline={moodTimeline}
+            passportData={passportData}
+            timeframeLabel={TIMEFRAME_LABELS[timeframe]}
+            themePack={recapTheme}
+            variant={recapVariant}
+          />
+        </Suspense>
       ) : null}
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-6 md:gap-8">
         <motion.section
-          className="relative overflow-hidden rounded-[2rem] border border-[#19313D] bg-[linear-gradient(135deg,#0E1B26_0%,#14313C_52%,#6D4632_100%)] p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] backdrop-blur md:p-8"
+          className="relative overflow-hidden rounded-[2rem] border p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] backdrop-blur md:p-8"
+          style={{
+            borderColor: dashboardTheme.panelBorder,
+            background: dashboardTheme.heroGradient
+          }}
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,195,192,0.16),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(228,169,75,0.14),transparent_28%)]" />
+          <div className="absolute inset-0" style={{ backgroundImage: dashboardTheme.heroGlow }} />
           <div className="relative">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="mb-3 text-sm uppercase tracking-[0.35em] text-[#67C3C0]">
+                <p className="mb-3 text-sm uppercase tracking-[0.35em]" style={{ color: dashboardTheme.accent }}>
                   Your Music DNA
                 </p>
                 <h1 className="max-w-3xl text-3xl font-semibold leading-tight text-white md:text-5xl lg:text-6xl">
@@ -893,15 +1128,15 @@ export default function App() {
         </motion.section>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-5">
+          <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
             <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Unique Songs</p>
-            <p className="mt-3 text-3xl font-semibold text-white">{uniqueSongs}</p>
+            <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">{uniqueSongs}</p>
           </div>
-          <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-5">
+          <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
             <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Total Plays</p>
-            <p className="mt-3 text-3xl font-semibold text-white">{totalPlays}</p>
+            <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">{totalPlays}</p>
           </div>
-          <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-5">
+          <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
             <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
               {dashboard?.source === "lastfm"
                 ? "Live User"
@@ -909,7 +1144,7 @@ export default function App() {
                   ? "Profile Handle"
                   : "Parsed Tracks"}
             </p>
-            <p className="mt-3 text-3xl font-semibold text-white">
+            <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">
               {dashboard?.source === "lastfm"
                 ? dashboard.username ?? "-"
                 : isYoutubeProfileMode
@@ -957,6 +1192,35 @@ export default function App() {
                   {warning}
                 </div>
               ))}
+            </div>
+          </Section>
+        ) : null}
+
+        {stats && !isYoutubeProfileMode ? (
+          <Section
+            title="Dashboard Mode"
+            subtitle="Keep the page focused with the core story, or open the full analytics stack when you want the deeper read."
+          >
+            <div className="flex flex-wrap gap-3">
+              {(["simple", "full"] as DashboardDensity[]).map((mode) => (
+                <button
+                  key={mode}
+                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
+                    dashboardDensity === mode
+                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
+                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
+                  }`}
+                  onClick={() => setDashboardDensity(mode)}
+                  type="button"
+                >
+                  {mode === "simple" ? "Simple view" : "Full view"}
+                </button>
+              ))}
+              <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
+                {dashboardDensity === "simple"
+                  ? "Core story only"
+                  : "Deeper analytics unlocked"}
+              </span>
             </div>
           </Section>
         ) : null}
@@ -1045,14 +1309,195 @@ export default function App() {
 
         {stats && !isYoutubeProfileMode ? (
           <Section
+            title="Compare View"
+            subtitle="Compare the current dashboard window against another timeframe from the same listening archive."
+          >
+            <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="grid gap-3">
+                <label className="grid gap-2">
+                  <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                    Comparison timeframe
+                  </span>
+                  <select
+                    className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
+                    onChange={(event) => setCompareTimeframe(event.target.value as TimeframeOption)}
+                    value={compareTimeframe}
+                  >
+                    {TIMEFRAME_COMPARE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {TIMEFRAME_LABELS[option]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Current window</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">{TIMEFRAME_LABELS[timeframe]}</p>
+                  <p className="mt-2 text-sm text-[#9CA3AF]">
+                    {stats.rawEnrichedHistory.length} songs, {formatHours(stats.totalListeningMinutes)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Listening time</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">
+                    {comparisonStats ? formatHours(comparisonStats.totalListeningMinutes) : "0.0 hrs"}
+                  </p>
+                  <p className="mt-2 text-sm text-[#9CA3AF]">
+                    {comparisonStats
+                      ? `${Math.round(stats.totalListeningMinutes - comparisonStats.totalListeningMinutes)} min delta vs current`
+                      : "No comparable data yet"}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top artist</p>
+                  <p className="mt-3 text-xl font-semibold text-white">
+                    {comparisonStats?.topArtists[0]?.artist ?? "No data"}
+                  </p>
+                  <p className="mt-2 text-sm text-[#9CA3AF]">
+                    Current: {topArtists[0]?.artist ?? "No data"}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top genre</p>
+                  <p className="mt-3 text-xl font-semibold text-white">
+                    {comparisonGenreBreakdown[0]?.genre ?? "Other"}
+                  </p>
+                  <p className="mt-2 text-sm text-[#9CA3AF]">
+                    Current: {genreBreakdown[0]?.genre ?? "Other"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Section>
+        ) : null}
+
+        {stats ? (
+          <Section
+            title="Saved Sessions"
+            subtitle="Save snapshots of your current dashboard and restore them later without re-uploading."
+          >
+            <div className="flex flex-wrap gap-3">
+              <button
+                className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
+                onClick={handleSaveSession}
+                type="button"
+              >
+                Save current session
+              </button>
+              <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
+                {savedSessions.length} saved locally
+              </span>
+            </div>
+            {savedSessions.length ? (
+              <div className="mt-5 grid gap-3">
+                {savedSessions.map((session) => (
+                  <article
+                    key={session.id}
+                    className="flex flex-col gap-4 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">{session.name}</h3>
+                      <p className="mt-1 text-sm text-[#9CA3AF]">
+                        {session.sourceLabel} · {TIMEFRAME_LABELS[session.timeframe]} · {new Date(session.savedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
+                        onClick={() => handleRestoreSession(session)}
+                        type="button"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        className="rounded-full border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/20"
+                        onClick={() => handleDeleteSession(session.id)}
+                        type="button"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-5 text-sm text-[#9CA3AF]">
+                No saved sessions yet. Save one after generating a dashboard to build your own listening archive.
+              </p>
+            )}
+          </Section>
+        ) : null}
+
+        {stats && !isYoutubeProfileMode ? (
+          <div
+            className="sticky top-4 z-20 rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] p-3 backdrop-blur-xl"
+            style={{ backgroundColor: "color-mix(in srgb, var(--panel-bg,#111827) 92%, transparent)" }}
+          >
+            <div className="flex flex-wrap gap-3">
+              {[
+                ["overview", "Overview"],
+                ["habits", "Habits"],
+                ["share", "Share"],
+                ...(dashboardDensity === "full" ? [["deep-dive", "Deep Dive"]] : [])
+              ].map(([sectionId, label]) => (
+                <button
+                  key={sectionId}
+                  className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
+                  onClick={() => scrollToSection(sectionId)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {stats && !isYoutubeProfileMode ? (
+          <Section
             title="Instant Recap"
             subtitle="Turn this listening profile into a cinematic, story-style recap whenever you want."
           >
-            <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
               <div>
                 <p className="max-w-2xl text-base text-[#9CA3AF]">
                   Launch a full-screen recap built from your total listening time, top song, artist orbit, genre DNA, mood signature, peak listening window, and passport finale.
                 </p>
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                      Recap Variant
+                    </span>
+                    <select
+                      className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
+                      onChange={(event) => setRecapVariant(event.target.value as RecapVariant)}
+                      value={recapVariant}
+                    >
+                      {(Object.keys(RECAP_VARIANT_LABELS) as RecapVariant[]).map((variant) => (
+                        <option key={variant} value={variant}>
+                          {RECAP_VARIANT_LABELS[variant]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                      Theme Pack
+                    </span>
+                    <select
+                      className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
+                      onChange={(event) => setRecapTheme(event.target.value as RecapThemePack)}
+                      value={recapTheme}
+                    >
+                      <option value="gold-noir">Gold Noir</option>
+                      <option value="violet-dusk">Violet Dusk</option>
+                      <option value="teal-afterglow">Teal Afterglow</option>
+                    </select>
+                  </label>
+                </div>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <button
                     className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
@@ -1062,10 +1507,10 @@ export default function App() {
                     Launch recap
                   </button>
                   <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
-                    7 slides
+                    variant-aware chapters
                   </span>
                   <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
-                    autoplay on
+                    embedded audio mode
                   </span>
                 </div>
               </div>
@@ -1077,171 +1522,97 @@ export default function App() {
                 </div>
                 <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-4">
                   <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Middle</p>
-                  <p className="mt-2 text-sm font-semibold text-white">Genre and mood</p>
+                  <p className="mt-2 text-sm font-semibold text-white">Artist web and taste arcs</p>
                 </div>
                 <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-4">
                   <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Finale</p>
-                  <p className="mt-2 text-sm font-semibold text-white">Passport card</p>
+                  <p className="mt-2 text-sm font-semibold text-white">Passport and finale card</p>
                 </div>
               </div>
             </div>
           </Section>
         ) : null}
 
-        {stats && !isYoutubeProfileMode ? (
-          <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <div ref={(node) => { sectionRefs.current.share = node; }} className="flex flex-col gap-6">
+          {stats && !isYoutubeProfileMode ? (
             <Section
-              title="Playlist Generator"
-              subtitle="Turn the current filtered snapshot into reusable listening sets."
-            >
-              <div className="flex flex-wrap gap-3">
-                {playlistBundles.map((bundle) => (
+                title="Export Studio"
+                subtitle="Package the current view as a profile link, PNG, or structured file."
+              >
+                <div className="grid gap-3">
                   <button
-                    key={bundle.id}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      selectedPlaylistId === bundle.id
-                        ? "border border-[#67C3C0] bg-[#67C3C0] text-slate-950"
-                        : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#67C3C0] hover:bg-[#182234]"
-                    }`}
-                    onClick={() => setSelectedPlaylistId(bundle.id)}
+                    className="rounded-[1.4rem] border border-[#E4A94B] bg-[#E4A94B] px-5 py-4 text-left font-semibold text-slate-950 transition hover:bg-[#F0D080]"
+                    onClick={() => void handleExportAsImage()}
                     type="button"
                   >
-                    {bundle.title}
+                    Export passport PNG
                   </button>
-                ))}
-              </div>
-
-              {selectedPlaylist ? (
-                <div className="mt-5 grid gap-4">
-                  <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                    <h3 className="text-2xl font-semibold text-white">{selectedPlaylist.title}</h3>
-                    <p className="mt-2 text-sm text-[#9CA3AF]">
-                      {selectedPlaylist.description}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        className="rounded-full border border-[#E4A94B] bg-[#E4A94B] px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                        onClick={() => handleExportPlaylist(selectedPlaylist)}
-                        type="button"
-                      >
-                        Export playlist
-                      </button>
-                      <button
-                        className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                        onClick={() =>
-                          void copyText(
-                            selectedPlaylist.tracks.map((track) => track.url).join("\n")
-                          ).then(() => setActionMessage(`${selectedPlaylist.title} links copied.`))
-                        }
-                        type="button"
-                      >
-                        Copy track links
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid gap-3">
-                    {selectedPlaylist.tracks.slice(0, 6).map((track, index) => (
-                      <article
-                        key={track.videoId}
-                        className="flex items-center gap-4 rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] p-4"
-                      >
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#67C3C0]/10 text-sm font-semibold text-[#67C3C0]">
-                          {index + 1}
-                        </div>
-                        {track.thumbnail ? (
-                          <img src={track.thumbnail} alt={track.title} className="h-14 w-14 rounded-2xl object-cover" />
-                        ) : (
-                          <div className="h-14 w-14 rounded-2xl bg-[#67C3C0]/10" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="truncate text-base font-semibold text-white">{track.title}</p>
-                          <p className="truncate text-sm text-[#9CA3AF]">{track.artist}</p>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
+                  <button
+                    className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                    onClick={() => passportData && void handleCopyShareableLink(passportData)}
+                    type="button"
+                  >
+                    Copy passport card link
+                  </button>
+                  <button
+                    className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                    onClick={() => publicProfilePayload && void handleCopyPublicProfileLink(publicProfilePayload)}
+                    type="button"
+                  >
+                    Copy public profile link
+                  </button>
+                  <button
+                    className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
+                    onClick={() => publicProfilePayload && handleExportDashboardJson(publicProfilePayload)}
+                    type="button"
+                  >
+                    Export dashboard summary JSON
+                  </button>
+                  {actionMessage ? (
+                    <p className="pt-2 text-sm text-[#9CA3AF]">{actionMessage}</p>
+                  ) : null}
                 </div>
-              ) : null}
-            </Section>
+              </Section>
+          ) : null}
 
+          {passportData ? (
             <Section
-              title="Export Studio"
-              subtitle="Package the current view as a profile link, PNG, or structured file."
+              title="Music Passport"
+              subtitle="A shareable summary card you can export as a PNG or copy as a read-only link."
             >
-              <div className="grid gap-3">
-                <button
-                  className="rounded-[1.4rem] border border-[#E4A94B] bg-[#E4A94B] px-5 py-4 text-left font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                  onClick={() => void handleExportAsImage()}
-                  type="button"
-                >
-                  Export passport PNG
-                </button>
-                <button
-                  className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                  onClick={() => passportData && void handleCopyShareableLink(passportData)}
-                  type="button"
-                >
-                  Copy passport card link
-                </button>
-                <button
-                  className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                  onClick={() => publicProfilePayload && void handleCopyPublicProfileLink(publicProfilePayload)}
-                  type="button"
-                >
-                  Copy public profile link
-                </button>
-                <button
-                  className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                  onClick={() => publicProfilePayload && handleExportDashboardJson(publicProfilePayload)}
-                  type="button"
-                >
-                  Export dashboard summary JSON
-                </button>
-                {actionMessage ? (
-                  <p className="pt-2 text-sm text-[#9CA3AF]">{actionMessage}</p>
-                ) : null}
-              </div>
-            </Section>
-          </div>
-        ) : null}
-
-        {passportData ? (
-          <Section
-            title="Music Passport"
-            subtitle="A shareable summary card you can export as a PNG or copy as a read-only link."
-          >
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-              <div className="overflow-x-auto">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div className="overflow-x-auto">
                 <div
                   ref={passportRef}
-                  className="w-fit rounded-[2.5rem] bg-[#09131d] p-5"
+                  className="w-fit bg-[#06070b]"
                 >
                   <MusicPassportCard data={passportData} />
                 </div>
-              </div>
+                </div>
 
-              <div className="flex w-full max-w-sm flex-col gap-3 xl:pt-3">
-                <button
-                  className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                  onClick={() => void handleExportAsImage()}
-                  type="button"
-                >
-                  Export as Image
-                </button>
-                <button
-                  className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                  onClick={() => void handleCopyShareableLink(passportData)}
-                  type="button"
-                >
-                  Copy Shareable Link
-                </button>
-                <p className="text-sm text-[#9CA3AF]">
-                  Shared links open a read-only passport card, so anyone with the URL sees the compact snapshot instead of the full dashboard.
-                </p>
+                <div className="flex w-full max-w-sm flex-col gap-3 xl:pt-3">
+                  <button
+                    className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
+                    onClick={() => void handleExportAsImage()}
+                    type="button"
+                  >
+                    Export as Image
+                  </button>
+                  <button
+                    className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
+                    onClick={() => void handleCopyShareableLink(passportData)}
+                    type="button"
+                  >
+                    Copy Shareable Link
+                  </button>
+                  <p className="text-sm text-[#9CA3AF]">
+                    Shared links open a read-only passport card, so anyone with the URL sees the compact snapshot instead of the full dashboard.
+                  </p>
+                </div>
               </div>
-            </div>
-          </Section>
-        ) : null}
+            </Section>
+          ) : null}
+        </div>
 
         {isYoutubeProfileMode ? (
           <Section
@@ -1332,45 +1703,47 @@ export default function App() {
           </>
         ) : stats && !isYoutubeProfileMode ? (
           <>
-            <Section
-              title="Your Music Profile"
-              subtitle="A snapshot of how much time you have spent inside your listening archive."
-            >
-              <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-sm uppercase tracking-[0.3em] text-[#F59E0B]">
-                      Total listening time
+            <div ref={(node) => { sectionRefs.current.overview = node; }}>
+              <Section
+                title="Your Music Profile"
+                subtitle="A snapshot of how much time you have spent inside your listening archive."
+              >
+                <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm uppercase tracking-[0.3em] text-[#F59E0B]">
+                        Total listening time
+                      </p>
+                      {dashboard?.source === "lastfm" ? (
+                        <span className="rounded-full border border-[#D4A853]/20 bg-[#D4A853]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#F0D080]">
+                          Live Mode
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-3 text-4xl font-semibold text-white md:text-6xl">
+                      {heroHours}
                     </p>
-                    {dashboard?.source === "lastfm" ? (
-                      <span className="rounded-full border border-[#D4A853]/20 bg-[#D4A853]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#F0D080]">
-                        Live Mode
-                      </span>
-                    ) : null}
+                    <p className="mt-4 max-w-2xl text-sm text-[#9CA3AF] md:text-base">
+                      Based on source data currently loaded into the dashboard.
+                    </p>
                   </div>
-                  <p className="mt-3 text-4xl font-semibold text-white md:text-6xl">
-                    {heroHours}
-                  </p>
-                  <p className="mt-4 max-w-2xl text-sm text-[#9CA3AF] md:text-base">
-                    Based on source data currently loaded into the dashboard.
-                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
+                      <p className="text-sm text-[#9CA3AF]">Top song</p>
+                      <p className="mt-2 text-lg font-semibold text-white">
+                        {topSongs[0]?.title ?? "No data yet"}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
+                      <p className="text-sm text-[#9CA3AF]">Top artist</p>
+                      <p className="mt-2 text-lg font-semibold text-white">
+                        {topArtists[0]?.artist ?? "No data yet"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                  <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
-                    <p className="text-sm text-[#9CA3AF]">Top song</p>
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {topSongs[0]?.title ?? "No data yet"}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
-                    <p className="text-sm text-[#9CA3AF]">Top artist</p>
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {topArtists[0]?.artist ?? "No data yet"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </Section>
+              </Section>
+            </div>
 
             <Section
               title="Top Songs"
@@ -1398,7 +1771,7 @@ export default function App() {
                       stroke="transparent"
                     />
                     <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="playCount" radius={[0, 12, 12, 0]} fill={CHART_ACCENT} />
+                    <Bar dataKey="playCount" radius={[0, 12, 12, 0]} fill={dashboardTheme.chartPrimary} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1429,248 +1802,135 @@ export default function App() {
                     />
                     <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={CHART_ACCENT_SECONDARY} />
+                    <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartSecondary} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </Section>
 
-            <div className="grid gap-6 xl:grid-cols-2">
+            {!isSimpleDashboard ? (
               <Section
-                title="Genre DNA"
-                subtitle="Keyword-led genre classification with artist-name fallback when tags are missing."
+                title="Artist Web"
+                subtitle="A living constellation of the artists shaping this listening window."
               >
-                <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-                  <div className="h-[280px] md:h-[320px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={genreBreakdown}
-                          dataKey="count"
-                          nameKey="genre"
-                          innerRadius={50}
-                          outerRadius={95}
-                          paddingAngle={3}
-                        >
-                          {genreBreakdown.map((entry, index) => (
-                            <Cell key={entry.genre} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<ChartTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-3">
-                    {genreBreakdown.map((entry, index) => (
-                      <div key={entry.genre} className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                            <span className="font-medium text-white">{entry.genre}</span>
-                          </div>
-                          <span className="text-sm text-[#9CA3AF]">{entry.percentage}%</span>
-                        </div>
-                        <p className="mt-2 text-sm text-[#9CA3AF]">{entry.count} plays</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <ArtistClusterWeb entries={stats.rawEnrichedHistory} />
               </Section>
+            ) : null}
 
-              <Section
-                title="Mood Timeline"
-                subtitle="Time-of-day buckets that hint at how your listening shifts through the day."
-              >
-                <div className="h-[280px] md:h-[320px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={moodTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                      <XAxis dataKey="mood" stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
-                      <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={CHART_ACCENT_TERTIARY} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Section>
-            </div>
-
-            <Section
-              title="Listening Heatmap"
-              subtitle="A 7x24 weekly matrix showing when your plays cluster by day and hour."
-            >
-              <ListeningHeatmap entries={heatmapEntries} />
-            </Section>
-
-            <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-              <Section
-                title="Persona Engine"
-                subtitle="Auralize distills your listening habits into one profile identity."
-              >
-                {personaProfile ? (
-                  <div className="grid gap-4">
-                    <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                      <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                        Listening Persona
-                      </p>
-                      <h3 className="mt-3 text-3xl font-semibold text-white">
-                        {personaProfile.title}
-                      </h3>
-                      <p className="mt-3 text-sm text-[#9CA3AF]">
-                        {personaProfile.subtitle}
-                      </p>
+            <div ref={(node) => { sectionRefs.current.habits = node; }} className="flex flex-col gap-6">
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Section
+                  title="Genre DNA"
+                  subtitle="Keyword-led genre classification with artist-name fallback when tags are missing."
+                >
+                  <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="h-[280px] md:h-[320px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={genreBreakdown}
+                            dataKey="count"
+                            nameKey="genre"
+                            innerRadius={50}
+                            outerRadius={95}
+                            paddingAngle={3}
+                          >
+                            {genreBreakdown.map((entry, index) => (
+                              <Cell key={entry.genre} fill={dashboardTheme.pieColors[index % dashboardTheme.pieColors.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<ChartTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div className="flex flex-wrap gap-3">
-                      {personaProfile.traits.map((trait) => (
-                        <span
-                          key={trait}
-                          className="rounded-full border border-[#D4A853]/15 bg-[#D4A853]/10 px-4 py-2 text-sm text-[#F0D080]"
-                        >
-                          {trait}
-                        </span>
+                    <div className="space-y-3">
+                      {genreBreakdown.map((entry, index) => (
+                        <div key={entry.genre} className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: dashboardTheme.pieColors[index % dashboardTheme.pieColors.length] }} />
+                              <span className="font-medium text-white">{entry.genre}</span>
+                            </div>
+                            <span className="text-sm text-[#9CA3AF]">{entry.percentage}%</span>
+                          </div>
+                          <p className="mt-2 text-sm text-[#9CA3AF]">{entry.count} plays</p>
+                        </div>
                       ))}
                     </div>
                   </div>
-                ) : null}
-              </Section>
+                </Section>
+
+                {!isSimpleDashboard ? (
+                  <Section
+                    title="Mood Timeline"
+                    subtitle="Time-of-day buckets that hint at how your listening shifts through the day."
+                  >
+                    <div className="h-[280px] md:h-[320px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={moodTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+                          <XAxis dataKey="mood" stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
+                          <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
+                          <Tooltip content={<ChartTooltip />} />
+                          <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartTertiary} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Section>
+                ) : (
+                  <Section
+                    title="Listening Habits"
+                    subtitle="Your strongest listening mood and the time of day where it shows up most."
+                  >
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {moodTimeline.slice(0, 2).map((entry, index) => (
+                        <div
+                          key={entry.mood}
+                          className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5"
+                        >
+                          <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                            {index === 0 ? "Dominant mood" : "Runner-up mood"}
+                          </p>
+                          <p className="mt-3 text-2xl font-semibold text-white">{entry.mood}</p>
+                          <p className="mt-2 text-sm text-[#9CA3AF]">{entry.playCount} plays</p>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+              </div>
 
               <Section
-                title="Smart Insights"
-                subtitle="A few high-signal takeaways pulled from your timing, repetition, and taste patterns."
+                title="Listening Heatmap"
+                subtitle="A 7x24 weekly matrix showing when your plays cluster by day and hour."
               >
-                <div className="grid gap-3">
-                  {smartInsights.map((insight) => (
-                    <article
-                      key={insight.title}
-                      className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4"
-                    >
-                      <h3 className="text-lg font-semibold text-white">{insight.title}</h3>
-                      <p className="mt-2 text-sm text-[#9CA3AF]">{insight.body}</p>
-                    </article>
-                  ))}
-                </div>
+                <ListeningHeatmap entries={heatmapEntries} />
               </Section>
             </div>
 
-            <Section
-              title="Taste Evolution"
-              subtitle="A compact arc showing how your dominant sound shifted across recent listening windows."
-            >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {tasteEvolution.map((point) => (
-                  <article
-                    key={`${point.label}-${point.topArtist}`}
-                    className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5"
-                  >
-                    <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                      {point.label}
-                    </p>
-                    <p className="mt-3 text-2xl font-semibold text-white">
-                      {point.topGenre}
-                    </p>
-                    <p className="mt-2 text-sm text-[#9CA3AF]">
-                      {point.topArtist} led this phase.
-                    </p>
-                    <p className="mt-4 text-sm text-[#67C3C0]">
-                      {point.playCount} plays in this window
-                    </p>
-                  </article>
-                ))}
+            {shouldShowAdvancedInsights ? (
+              <div ref={(node) => { sectionRefs.current["deep-dive"] = node; }}>
+                <Suspense
+                  fallback={
+                    <Section title="Loading Insights" subtitle="Preparing the advanced dashboard layer.">
+                      <ChartSkeleton heightClass="h-[260px]" />
+                    </Section>
+                  }
+                >
+                  <DashboardAdvancedSections
+                    selectedPlaylist={selectedPlaylist}
+                    onExportPlaylist={handleExportPlaylist}
+                    onActionMessage={setActionMessage}
+                    personaProfile={personaProfile}
+                    smartInsights={smartInsights}
+                    tasteEvolution={tasteEvolution}
+                    memoryLane={memoryLane}
+                    achievementBadges={achievementBadges}
+                    recentHistory={stats.rawEnrichedHistory}
+                  />
+                </Suspense>
               </div>
-            </Section>
-
-            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-              <Section
-                title="Memory Lane"
-                subtitle="Songs that have been with you the longest in the current listening snapshot."
-              >
-                <div className="grid gap-3">
-                  {memoryLane.map((entry) => (
-                    <article
-                      key={`${entry.videoId}-${entry.firstPlayed}`}
-                      className="flex items-center gap-4 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4"
-                    >
-                      {entry.thumbnail ? (
-                        <img
-                          src={entry.thumbnail}
-                          alt={entry.title}
-                          className="h-16 w-16 rounded-2xl object-cover"
-                        />
-                      ) : (
-                        <div className="h-16 w-16 rounded-2xl bg-[#D4A853]/10" />
-                      )}
-                      <div className="min-w-0">
-                        <h3 className="truncate text-lg font-semibold text-white">
-                          {entry.title}
-                        </h3>
-                        <p className="truncate text-sm text-[#9CA3AF]">{entry.artist}</p>
-                        <p className="mt-2 text-xs text-[#F0D080]">
-                          First heard {formatTimestamp(entry.firstPlayed)}
-                        </p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </Section>
-
-              <Section
-                title="Achievement Badges"
-                subtitle="Milestones and listening tendencies earned from your current archive."
-              >
-                <div className="grid gap-3">
-                  {achievementBadges.map((badge) => {
-                    const toneClasses =
-                      badge.tone === "teal"
-                        ? "border-[#67C3C0]/20 bg-[#67C3C0]/10 text-[#8AD4C7]"
-                        : badge.tone === "ember"
-                          ? "border-[#D97757]/20 bg-[#D97757]/10 text-[#F1B29D]"
-                          : "border-[#D4A853]/20 bg-[#D4A853]/10 text-[#F0D080]";
-
-                    return (
-                      <article
-                        key={badge.title}
-                        className={`rounded-[1.5rem] border p-4 ${toneClasses}`}
-                      >
-                        <h3 className="text-lg font-semibold">{badge.title}</h3>
-                        <p className="mt-2 text-sm text-[#E5E7EB]">{badge.description}</p>
-                      </article>
-                    );
-                  })}
-                </div>
-              </Section>
-            </div>
-
-            <Section
-              title="Recent Parsed History"
-              subtitle="A compact view of the parsed and enriched records powering the dashboard."
-            >
-              <div className="grid gap-3">
-                {stats.rawEnrichedHistory.slice(0, 8).map((entry) => (
-                  <article
-                    key={entry.videoId}
-                    className="flex flex-col gap-4 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div className="flex items-center gap-4">
-                      {entry.thumbnail ? (
-                        <img src={entry.thumbnail} alt={entry.title} className="h-16 w-16 rounded-2xl object-cover" />
-                      ) : (
-                        <div className="h-16 w-16 rounded-2xl bg-[#D4A853]/10" />
-                      )}
-                      <div>
-                        <h3 className="text-base font-semibold text-white">{entry.title}</h3>
-                        <p className="text-sm text-[#9CA3AF]">{entry.artist}</p>
-                        <p className="mt-1 text-xs text-[#9CA3AF]">{entry.tags.slice(0, 3).join(" | ") || "No tags"}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-[#D4A853]/10 px-3 py-1 text-xs text-[#F0D080]">{entry.playCount} plays</span>
-                      <span className="rounded-full bg-[#111827] px-3 py-1 text-xs text-[#9CA3AF]">{entry.duration}</span>
-                      {entry.timestamps[0] ? <span className="rounded-full bg-[#111827] px-3 py-1 text-xs text-[#9CA3AF]">{formatTimestamp(entry.timestamps[0])}</span> : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </Section>
+            ) : null}
           </>
         ) : (
           <Section
