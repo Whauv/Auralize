@@ -1,52 +1,79 @@
 # Auralize
 
-Auralize is a YouTube Music and Last.fm listening visualizer with a React + TypeScript + Vite frontend and a FastAPI backend.
+Auralize is a music listening visualizer for YouTube Music, music played from the regular YouTube app, and Last.fm. It combines a React + TypeScript + Vite frontend with a FastAPI backend.
 
-## Features
+## What It Does
 
-- Google Takeout `watch-history.json` upload flow
-- YouTube Data API enrichment for titles, artists, thumbnails, durations, and tags
-- Stats dashboard with top songs, top artists, genre DNA, mood timeline, and listening heatmap
-- Shareable Music Passport card with PNG export
-- Optional Last.fm Live Mode
+- Upload Google Takeout `watch-history.json`
+- Analyze `YouTube Music` only or a new `YouTube + Music` unified mode
+- Enrich tracks with YouTube Data API metadata
+- Build dashboards, recap stories, and a shareable Music Passport
+- Support Last.fm Live Mode
 
 ## Environment Variables
 
-Backend `backend/.env`
+Backend: [backend/.env](C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend\.env)
 
 ```env
 YOUTUBE_API_KEY=
 LASTFM_API_KEY=
 ```
 
-Frontend `.env` or compose environment
+Frontend: optional local override
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
-## Local Setup
-
 ## Project Structure
 
 ```text
 Auralize/
-├── backend/           FastAPI API, parsers, enrichment, and integrations
-├── frontend/          React dashboard, passport card, and upload flows
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   └── services/
+│   │       ├── lastfm_api.py
+│   │       ├── parser.py
+│   │       ├── stats.py
+│   │       ├── youtube_api.py
+│   │       └── youtube_profile.py
+│   ├── data/
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── DashboardAdvancedSections.tsx
+│   │   │   ├── DashboardBits.tsx
+│   │   │   ├── ErrorBoundary.tsx
+│   │   │   ├── MusicPassportCard.tsx
+│   │   │   └── RecapView.tsx
+│   │   ├── lib/
+│   │   │   ├── types.ts
+│   │   │   └── utils.ts
+│   │   ├── App.tsx
+│   │   ├── index.css
+│   │   └── main.tsx
+│   ├── Dockerfile
+│   └── package.json
 ├── docs/
-│   └── screenshots/   Screenshot placeholders for README assets
+│   └── screenshots/
 ├── docker-compose.yml
 └── README.md
 ```
 
+## Local Setup
+
 ### Backend
 
 ```powershell
-cd backend
+cd C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
 ```
 
 Backend runs on `http://localhost:8000`.
@@ -54,26 +81,17 @@ Backend runs on `http://localhost:8000`.
 ### Frontend
 
 ```powershell
-cd frontend
+cd C:\Users\prana\OneDrive\Documents\Playground\Auralize\frontend
 npm.cmd install
 npm.cmd run dev
 ```
 
-Frontend dev server runs on `http://localhost:5173`.
-
-Preview build:
-
-```powershell
-cd frontend
-npm.cmd run build
-npm.cmd run preview
-```
-
-Preview runs on `http://localhost:4173`.
+Frontend runs on `http://localhost:5173`.
 
 ## Docker
 
 ```powershell
+cd C:\Users\prana\OneDrive\Documents\Playground\Auralize
 docker compose up --build
 ```
 
@@ -84,22 +102,40 @@ Services:
 
 ## API Endpoints
 
+- `GET /api/health`
 - `POST /api/upload`
+- `POST /api/analyze`
+- `POST /api/upload-unified`
+- `POST /api/analyze-unified`
 - `POST /api/stats`
+- `POST /api/stats-unified`
 - `POST /api/genre-breakdown`
+- `POST /api/genre-breakdown-unified`
 - `POST /api/mood-timeline`
+- `POST /api/mood-timeline-unified`
 - `POST /api/lastfm`
 - `POST /api/youtube-profile`
 
-## Live Mode
+## Unified YouTube Mode
 
-Last.fm Live Mode accepts a username and fetches:
+The `YouTube + Music` tab uses the same Google Takeout file as the standard Takeout mode, but it also includes music-like plays from the regular YouTube app.
 
-- `user.getrecenttracks`
-- `user.gettopartists`
-- `user.gettoptracks`
+Included:
 
-The backend maps this into the same dashboard schema used by the Takeout pipeline.
+- YouTube Music listens
+- official audios
+- music videos
+- lyric videos
+- remixes
+- `Artist - Topic` uploads
+
+Filtered out:
+
+- search entries
+- non-music YouTube videos
+- unrelated standard YouTube activity
+
+This mode is now faster than before because the frontend uses a single backend analysis request instead of making separate upload, stats, genre, and mood requests for the same file.
 
 ## Screenshots
 

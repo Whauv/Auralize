@@ -1,13 +1,13 @@
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
-import type { EnrichedHistoryEntry } from "./types";
+import type { EnrichedHistoryEntry } from "../lib/types";
 import {
   HEATMAP_HOURS,
   buildArtistClusters,
   buildHeatmapData,
   getHeatmapIntensityClass,
   truncateLabel
-} from "./utils";
+} from "../lib/utils";
 
 export function Section({
   title,

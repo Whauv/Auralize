@@ -11,7 +11,60 @@ import requests
 YOUTUBE_VIDEOS_ENDPOINT = "https://www.googleapis.com/youtube/v3/videos"
 BATCH_SIZE = 50
 MAX_RETRIES = 3
-CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "youtube_cache.json"
+CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "youtube_cache.json"
+MUSIC_TITLE_KEYWORDS = (
+    "official audio",
+    "official video",
+    "music video",
+    "lyric video",
+    "lyrics",
+    "visualizer",
+    "album",
+    "remix",
+    "cover",
+    "soundtrack",
+    "prod.",
+    "feat.",
+    "ft.",
+    "topic",
+    "live session",
+)
+MUSIC_TAG_KEYWORDS = (
+    "music",
+    "song",
+    "audio",
+    "video",
+    "album",
+    "single",
+    "lyrics",
+    "remix",
+    "soundtrack",
+    "pop",
+    "hip hop",
+    "rap",
+    "rock",
+    "r&b",
+    "indie",
+    "electronic",
+    "jazz",
+    "classical",
+    "lofi",
+    "k-pop",
+)
+NON_MUSIC_KEYWORDS = (
+    "podcast",
+    "interview",
+    "reaction",
+    "trailer",
+    "gameplay",
+    "walkthrough",
+    "stream",
+    "vlog",
+    "episode",
+    "news",
+    "highlights",
+    "shorts",
+)
 
 
 def chunked(items: list[str], size: int) -> list[list[str]]:
@@ -121,3 +174,31 @@ def enrich_with_youtube_api(video_ids: list[str]) -> dict[str, dict[str, Any]]:
         save_cache(cached_records)
 
     return enriched_records
+
+
+def is_music_video(enriched_record: dict[str, Any]) -> bool:
+    title = str(enriched_record.get("title") or "").lower()
+    artist = str(enriched_record.get("artist") or "").lower()
+    tags = [str(tag).lower() for tag in enriched_record.get("tags") or []]
+
+    positive_title = any(keyword in title for keyword in MUSIC_TITLE_KEYWORDS)
+    positive_tags = any(
+        keyword in tag
+        for tag in tags
+        for keyword in MUSIC_TAG_KEYWORDS
+    )
+    positive_artist = (
+        artist.endswith("- topic")
+        or "vevo" in artist
+        or "records" in artist
+        or "music" in artist
+    )
+    negative_signal = any(keyword in title for keyword in NON_MUSIC_KEYWORDS)
+
+    if positive_artist or positive_title or positive_tags:
+        return True
+
+    if negative_signal:
+        return False
+
+    return False

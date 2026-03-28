@@ -35,7 +35,7 @@ export type MoodTimelineEntry = {
 };
 
 export type DashboardResponse = {
-  source: "takeout" | "lastfm" | "youtube-profile";
+  source: "takeout" | "unified-takeout" | "lastfm" | "youtube-profile";
   username: string | null;
   stats: StatsPayload;
   genreBreakdown: GenreBreakdownEntry[];
@@ -65,6 +65,10 @@ export type UploadQualitySummary = {
 export type UploadResponse = {
   entries: ParsedHistoryEntry[];
   quality: UploadQualitySummary;
+};
+
+export type DashboardUploadResponse = UploadResponse & {
+  dashboard: DashboardResponse;
 };
 
 export type TasteEvolutionPoint = {

@@ -24,7 +24,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { MusicPassportCard, type MusicPassportData } from "./MusicPassportCard";
+import { MusicPassportCard, type MusicPassportData } from "./components/MusicPassportCard";
 import {
   ArtistClusterWeb,
   ChartSkeleton,
@@ -33,13 +33,12 @@ import {
   LoadingSpinner,
   Section,
   SongTick
-} from "./DashboardBits";
+} from "./components/DashboardBits";
 import type {
   AchievementBadge,
+  DashboardUploadResponse,
   DashboardResponse,
-  GenreBreakdownEntry,
   MemoryLaneEntry,
-  MoodTimelineEntry,
   PlaylistBundle,
   PlaylistMode,
   PersonaProfile,
@@ -49,12 +48,10 @@ import type {
   RecapVariant,
   SavedSession,
   SmartInsight,
-  StatsPayload,
   TasteEvolutionPoint,
   TimeframeOption,
   UploadQualitySummary,
-  UploadResponse
-} from "./types";
+} from "./lib/types";
 import {
   PROFILE_SHARE_PARAM,
   SHARE_PARAM,
@@ -68,7 +65,6 @@ import {
   buildPersonaProfile,
   buildSmartInsights,
   buildStatsPayloadFromHistory,
-  buildTakeoutDashboardResponse,
   buildTasteEvolution,
   copyText,
   decodePublicProfilePayload,
@@ -89,15 +85,15 @@ import {
   TIMEFRAME_LABELS,
   buildSavedSession,
   truncateLabel
-} from "./utils";
+} from "./lib/utils";
 
-type SourceMode = "takeout" | "lastfm";
+type SourceMode = "takeout" | "unified-takeout" | "lastfm";
 type DashboardDensity = "simple" | "full";
 const RecapView = lazy(() =>
-  import("./RecapView").then((module) => ({ default: module.RecapView }))
+  import("./components/RecapView").then((module) => ({ default: module.RecapView }))
 );
 const DashboardAdvancedSections = lazy(() =>
-  import("./DashboardAdvancedSections").then((module) => ({
+  import("./components/DashboardAdvancedSections").then((module) => ({
     default: module.DashboardAdvancedSections
   }))
 );
@@ -459,6 +455,9 @@ export default function App() {
     if (dashboard?.source === "lastfm") {
       return "Last.fm Live Mode";
     }
+    if (dashboard?.source === "unified-takeout") {
+      return "YouTube Music + YouTube Music Plays";
+    }
     if (dashboard?.source === "youtube-profile") {
       return "YouTube Music Public Profile";
     }
@@ -668,19 +667,25 @@ export default function App() {
       return;
     }
 
-    const uploadPayload = await postFile<UploadResponse>("/upload", selectedFile);
-    setParsedHistory(uploadPayload.entries);
-    setUploadQuality(uploadPayload.quality);
+    const analysisPayload = await postFile<DashboardUploadResponse>("/analyze", selectedFile);
+    setParsedHistory(analysisPayload.entries);
+    setUploadQuality(analysisPayload.quality);
+    setDashboard(analysisPayload.dashboard);
+    setIsRecapOpen(false);
+    setTimeframe("all");
+  }
 
-    const [statsPayload, genrePayload, moodPayload] = await Promise.all([
-      postFile<StatsPayload>("/stats", selectedFile),
-      postFile<GenreBreakdownEntry[]>("/genre-breakdown", selectedFile),
-      postFile<MoodTimelineEntry[]>("/mood-timeline", selectedFile)
-    ]);
+  async function handleUnifiedTakeoutSubmit() {
+    if (!file) {
+      setError("Choose a watch-history.json file first.");
+      return;
+    }
 
-    setDashboard(
-      buildTakeoutDashboardResponse(statsPayload, genrePayload, moodPayload)
-    );
+    const selectedFile = file;
+    const analysisPayload = await postFile<DashboardUploadResponse>("/analyze-unified", selectedFile);
+    setParsedHistory(analysisPayload.entries);
+    setUploadQuality(analysisPayload.quality);
+    setDashboard(analysisPayload.dashboard);
     setIsRecapOpen(false);
     setTimeframe("all");
   }
@@ -709,6 +714,8 @@ export default function App() {
     try {
       if (sourceMode === "takeout") {
         await handleTakeoutSubmit();
+      } else if (sourceMode === "unified-takeout") {
+        await handleUnifiedTakeoutSubmit();
       } else {
         await handleLastFmSubmit();
       }
@@ -952,7 +959,7 @@ export default function App() {
                   Upload your history, paste a profile, or switch to live scrobbles.
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm text-[#9CA3AF] md:text-lg">
-                  Use Google Takeout for deep playback analytics, paste a YouTube Music profile link for a lightweight public preview, or use Last.fm Live Mode for a fresh snapshot of your listening identity.
+                  Use Google Takeout for YouTube Music-only analytics, switch to the unified YouTube tab to include music plays from the main YouTube app too, paste a YouTube Music profile link for a lightweight public preview, or use Last.fm Live Mode for a fresh snapshot of your listening identity.
                 </p>
               </div>
 
@@ -979,6 +986,17 @@ export default function App() {
                   type="button"
                 >
                   Google Takeout
+                </button>
+                <button
+                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
+                    sourceMode === "unified-takeout"
+                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
+                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
+                  }`}
+                  onClick={() => setSourceMode("unified-takeout")}
+                  type="button"
+                >
+                  YouTube + Music
                 </button>
                 <button
                   className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
@@ -1060,6 +1078,60 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+              ) : sourceMode === "unified-takeout" ? (
+                <div
+                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${
+                    isDragActive
+                      ? "border-[#D4A853] bg-[#D4A853]/10"
+                      : "border-[#1E293B] bg-[#111827]"
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+                    <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+                      <div className="mb-4 rounded-full border border-[#1E293B] bg-[#182234] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
+                        Unified Music Mode
+                      </div>
+                      <p className="text-xl font-semibold text-white">
+                        Drop watch-history.json here
+                      </p>
+                      <p className="mt-2 text-sm text-[#9CA3AF]">
+                        This mode keeps YouTube Music plays and also pulls in music-like watches from the regular YouTube app.
+                      </p>
+                      <p className="mt-4 max-w-xl text-xs text-[#9CA3AF]">
+                        Auralize will filter out searches and non-music YouTube videos so the dashboard still stays focused on songs, remixes, lyric videos, and music videos.
+                      </p>
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                        <label className="cursor-pointer rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.02] hover:bg-[#F0D080]">
+                          Choose file
+                          <input
+                            className="sr-only"
+                            type="file"
+                            accept=".json,application/json"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
+                      <p className="text-sm font-semibold text-white">What gets included</p>
+                      <div className="mt-4 grid gap-3 text-sm text-[#9CA3AF]">
+                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+                          Plays from YouTube Music
+                        </div>
+                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+                          Music videos, lyric videos, official audios, remixes, and Topic uploads from regular YouTube
+                        </div>
+                        <div className="rounded-2xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-amber-100">
+                          Non-music YouTube content is excluded after metadata enrichment
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-6">
                   <label className="block text-sm font-semibold text-white">
@@ -1080,7 +1152,7 @@ export default function App() {
 
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col gap-2">
-                  {sourceMode === "takeout" ? (
+                  {sourceMode === "takeout" || sourceMode === "unified-takeout" ? (
                     <>
                       {file ? (
                         <p className="text-sm text-[#9CA3AF]">
@@ -1089,14 +1161,20 @@ export default function App() {
                       ) : (
                         <p className="text-sm text-[#9CA3AF]">No file selected yet.</p>
                       )}
-                      {youtubeMusicProfileUrl ? (
+                      {sourceMode === "takeout" && youtubeMusicProfileUrl ? (
                         <p className="text-sm text-[#9CA3AF]">
                           Profile link: <span className="break-all text-white">{youtubeMusicProfileUrl}</span>
                         </p>
                       ) : null}
-                      <p className="text-xs text-[#9CA3AF]">
-                        The button uses your file if one is selected. Otherwise, it uses the YouTube Music profile link.
-                      </p>
+                      {sourceMode === "takeout" ? (
+                        <p className="text-xs text-[#9CA3AF]">
+                          The button uses your file if one is selected. Otherwise, it uses the YouTube Music profile link.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[#9CA3AF]">
+                          Unified mode uses the same Takeout file, but expands the analysis to music plays from both YouTube Music and the main YouTube app.
+                        </p>
+                      )}
                     </>
                   ) : (
                     <p className="text-sm text-[#9CA3AF]">
@@ -1118,7 +1196,7 @@ export default function App() {
                 >
                   {isUploading
                     ? "Loading..."
-                    : sourceMode === "takeout"
+                    : sourceMode === "takeout" || sourceMode === "unified-takeout"
                       ? "Build dashboard or preview"
                       : "Start Live Mode"}
                 </button>
