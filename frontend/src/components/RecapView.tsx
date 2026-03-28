@@ -7,12 +7,12 @@ import type {
   RecapThemePack,
   RecapVariant,
   StatsPayload
-} from "./types";
+} from "../lib/types";
 import {
   buildHeatmapData,
   formatHours,
   getLongestListeningStreak
-} from "./utils";
+} from "../lib/utils";
 import { ArtistClusterWeb } from "./DashboardBits";
 import { MusicPassportCard, type MusicPassportData } from "./MusicPassportCard";
 

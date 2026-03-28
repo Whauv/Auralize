@@ -8,8 +8,8 @@ import type {
   PlaylistBundle,
   SmartInsight,
   TasteEvolutionPoint
-} from "./types";
-import { copyText, formatTimestamp } from "./utils";
+} from "../lib/types";
+import { copyText, formatTimestamp } from "../lib/utils";
 
 export function DashboardAdvancedSections({
   selectedPlaylist,

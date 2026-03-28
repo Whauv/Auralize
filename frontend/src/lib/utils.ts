@@ -16,7 +16,7 @@ import type {
   TasteEvolutionPoint,
   TimeframeOption
 } from "./types";
-import type { MusicPassportData } from "./MusicPassportCard";
+import type { MusicPassportData } from "../components/MusicPassportCard";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 export const SHARE_PARAM = "passport";
@@ -260,10 +260,11 @@ export async function postJson<T>(path: string, payload: Record<string, string>)
 export function buildTakeoutDashboardResponse(
   stats: StatsPayload,
   genreBreakdown: GenreBreakdownEntry[],
-  moodTimeline: MoodTimelineEntry[]
+  moodTimeline: MoodTimelineEntry[],
+  source: DashboardResponse["source"] = "takeout"
 ): DashboardResponse {
   return {
-    source: "takeout",
+    source,
     username: null,
     stats,
     genreBreakdown,
