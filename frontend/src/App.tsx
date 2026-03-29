@@ -10,29 +10,13 @@ import {
   useRef,
   useState
 } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import html2canvas from "html2canvas";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
 import { MusicPassportCard, type MusicPassportData } from "./components/MusicPassportCard";
 import {
-  ArtistClusterWeb,
   ChartSkeleton,
-  ChartTooltip,
-  ListeningHeatmap,
   LoadingSpinner,
-  Section,
-  SongTick
+  Section
 } from "./components/DashboardBits";
 import type {
   AchievementBadge,
@@ -83,8 +67,7 @@ import {
   RECAP_VARIANT_LABELS,
   TIMEFRAME_COMPARE_OPTIONS,
   TIMEFRAME_LABELS,
-  buildSavedSession,
-  truncateLabel
+  buildSavedSession
 } from "./lib/utils";
 
 type SourceMode = "takeout" | "unified-takeout" | "lastfm";
@@ -95,6 +78,11 @@ const RecapView = lazy(() =>
 const DashboardAdvancedSections = lazy(() =>
   import("./components/DashboardAdvancedSections").then((module) => ({
     default: module.DashboardAdvancedSections
+  }))
+);
+const DashboardOverviewSections = lazy(() =>
+  import("./components/DashboardOverviewSections").then((module) => ({
+    default: module.DashboardOverviewSections
   }))
 );
 
@@ -212,6 +200,7 @@ function AmbientMusicScene() {
 
 export default function App() {
   const { scrollYProgress } = useScroll();
+  const prefersReducedMotion = useReducedMotion();
   const progressScale = useTransform(scrollYProgress, [0, 1], [0, 1]);
   const [sourceMode, setSourceMode] = useState<SourceMode>("takeout");
   const [file, setFile] = useState<File | null>(null);
@@ -238,6 +227,7 @@ export default function App() {
   const [selectedPlaylistId] = useState<PlaylistMode>("top");
   const [compareTimeframe, setCompareTimeframe] = useState<TimeframeOption>("90d");
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
+  const [showIntro, setShowIntro] = useState(true);
   const passportRef = useRef<HTMLDivElement | null>(null);
   const passportExportRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -328,6 +318,16 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(SAVED_SESSIONS_STORAGE_KEY, JSON.stringify(savedSessions));
   }, [savedSessions]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setShowIntro(false);
+    }, prefersReducedMotion ? 150 : 2100);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [prefersReducedMotion]);
 
   const isYoutubeProfileMode = dashboard?.source === "youtube-profile";
   const timeframeEntries = useMemo(() => {
@@ -914,6 +914,66 @@ export default function App() {
       }
     >
       <motion.div className="scroll-glow" style={{ scaleX: progressScale }} />
+      <AnimatePresence mode="wait">
+        {showIntro ? (
+          <motion.div
+            key="intro-splash"
+            className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#060812]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.8, ease: [0.19, 1, 0.22, 1] } }}
+          >
+            <motion.div
+              className="intro-splash-card"
+              initial={{ opacity: 0, scale: 0.96, y: 24, filter: "blur(10px)" }}
+              animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 1.02, y: -12, filter: "blur(8px)" }}
+              transition={{ duration: 1.25, ease: [0.19, 1, 0.22, 1] }}
+            >
+              <motion.div
+                className="intro-splash-ring"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 1.5, ease: [0.19, 1, 0.22, 1] }}
+              />
+              <motion.p
+                className="intro-splash-kicker"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.75, delay: 0.16, ease: [0.19, 1, 0.22, 1] }}
+              >
+                Auralize
+              </motion.p>
+              <motion.h1
+                className="intro-splash-title"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1.05, delay: 0.28, ease: [0.19, 1, 0.22, 1] }}
+              >
+                Your listening world, coming into focus.
+              </motion.h1>
+              <motion.p
+                className="intro-splash-copy"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.95, delay: 0.48, ease: [0.19, 1, 0.22, 1] }}
+              >
+                Loading your dashboard, recap, and music passport.
+              </motion.p>
+              <motion.div
+                className="intro-splash-progress"
+                initial={{ scaleX: 0, opacity: 0.6 }}
+                animate={{ scaleX: 1, opacity: 1 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0.01 : 1.7,
+                  delay: 0.42,
+                  ease: [0.19, 1, 0.22, 1]
+                }}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       <AmbientMusicScene />
       {passportData ? (
         <div className="pointer-events-none fixed -left-[10000px] top-0 opacity-0">
@@ -937,7 +997,16 @@ export default function App() {
           />
         </Suspense>
       ) : null}
-      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-6 md:gap-8">
+      <motion.div
+        className="relative z-10 mx-auto flex max-w-7xl flex-col gap-6 md:gap-8"
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12, filter: "blur(8px)" }}
+        animate={
+          prefersReducedMotion
+            ? { opacity: 1, y: 0, filter: "blur(0px)" }
+            : { opacity: showIntro ? 0.22 : 1, y: showIntro ? 12 : 0, filter: showIntro ? "blur(8px)" : "blur(0px)" }
+        }
+        transition={{ duration: 1, ease: [0.19, 1, 0.22, 1] }}
+      >
         <motion.section
           className="relative overflow-hidden rounded-[2rem] border p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] backdrop-blur md:p-8"
           style={{
@@ -1823,167 +1892,38 @@ export default function App() {
               </Section>
             </div>
 
-            <Section
-              title="Top Songs"
-              subtitle="Your 10 most-played songs with cover art embedded into the chart labels."
-            >
-              <div className="h-[380px] md:h-[460px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={topSongs}
-                    layout="vertical"
-                    margin={{
-                      top: 10,
-                      right: 10,
-                      left: window.innerWidth < 768 ? 135 : 170,
-                      bottom: 0
-                    }}
-                  >
-                    <CartesianGrid stroke="rgba(255,255,255,0.08)" horizontal={false} />
-                    <XAxis type="number" stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
-                    <YAxis
-                      type="category"
-                      dataKey="title"
-                      width={window.innerWidth < 768 ? 145 : 180}
-                      tick={(props) => <SongTick {...props} songs={topSongs} />}
-                      stroke="transparent"
-                    />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="playCount" radius={[0, 12, 12, 0]} fill={dashboardTheme.chartPrimary} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Section>
-
-            <Section
-              title="Top Artists"
-              subtitle="Artists sorted by total play count across your listening history."
-            >
-              <div className="h-[320px] md:h-[360px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={topArtists.map((entry) => ({
-                      ...entry,
-                      artist: truncateLabel(entry.artist, 18)
-                    }))}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 50 }}
-                  >
-                    <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                    <XAxis
-                      dataKey="artist"
-                      angle={-18}
-                      textAnchor="end"
-                      interval={0}
-                      height={70}
-                      stroke="#9CA3AF"
-                      tick={{ fill: "#9CA3AF", fontSize: 12 }}
-                    />
-                    <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartSecondary} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Section>
-
-            {!isSimpleDashboard ? (
-              <Section
-                title="Artist Web"
-                subtitle="A living constellation of the artists shaping this listening window."
-              >
-                <ArtistClusterWeb entries={stats.rawEnrichedHistory} />
-              </Section>
-            ) : null}
-
             <div ref={(node) => { sectionRefs.current.habits = node; }} className="flex flex-col gap-6">
-              <div className="grid gap-6 xl:grid-cols-2">
-                <Section
-                  title="Genre DNA"
-                  subtitle="Keyword-led genre classification with artist-name fallback when tags are missing."
-                >
-                  <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-                    <div className="h-[280px] md:h-[320px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={genreBreakdown}
-                            dataKey="count"
-                            nameKey="genre"
-                            innerRadius={50}
-                            outerRadius={95}
-                            paddingAngle={3}
-                          >
-                            {genreBreakdown.map((entry, index) => (
-                              <Cell key={entry.genre} fill={dashboardTheme.pieColors[index % dashboardTheme.pieColors.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip content={<ChartTooltip />} />
-                        </PieChart>
-                      </ResponsiveContainer>
+              <Suspense
+                fallback={
+                  <>
+                    <Section title="Top Songs" subtitle="Preparing your top tracks.">
+                      <ChartSkeleton heightClass="h-[420px]" />
+                    </Section>
+                    <Section title="Top Artists" subtitle="Preparing your artist rankings.">
+                      <ChartSkeleton heightClass="h-[340px]" />
+                    </Section>
+                    <div className="grid gap-6 xl:grid-cols-2">
+                      <Section title="Genre DNA" subtitle="Classifying genres.">
+                        <ChartSkeleton />
+                      </Section>
+                      <Section title="Listening Habits" subtitle="Mapping your strongest patterns.">
+                        <ChartSkeleton />
+                      </Section>
                     </div>
-                    <div className="space-y-3">
-                      {genreBreakdown.map((entry, index) => (
-                        <div key={entry.genre} className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: dashboardTheme.pieColors[index % dashboardTheme.pieColors.length] }} />
-                              <span className="font-medium text-white">{entry.genre}</span>
-                            </div>
-                            <span className="text-sm text-[#9CA3AF]">{entry.percentage}%</span>
-                          </div>
-                          <p className="mt-2 text-sm text-[#9CA3AF]">{entry.count} plays</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </Section>
-
-                {!isSimpleDashboard ? (
-                  <Section
-                    title="Mood Timeline"
-                    subtitle="Time-of-day buckets that hint at how your listening shifts through the day."
-                  >
-                    <div className="h-[280px] md:h-[320px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={moodTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                          <XAxis dataKey="mood" stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
-                          <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
-                          <Tooltip content={<ChartTooltip />} />
-                          <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartTertiary} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Section>
-                ) : (
-                  <Section
-                    title="Listening Habits"
-                    subtitle="Your strongest listening mood and the time of day where it shows up most."
-                  >
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {moodTimeline.slice(0, 2).map((entry, index) => (
-                        <div
-                          key={entry.mood}
-                          className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5"
-                        >
-                          <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                            {index === 0 ? "Dominant mood" : "Runner-up mood"}
-                          </p>
-                          <p className="mt-3 text-2xl font-semibold text-white">{entry.mood}</p>
-                          <p className="mt-2 text-sm text-[#9CA3AF]">{entry.playCount} plays</p>
-                        </div>
-                      ))}
-                    </div>
-                  </Section>
-                )}
-              </div>
-
-              <Section
-                title="Listening Heatmap"
-                subtitle="A 7x24 weekly matrix showing when your plays cluster by day and hour."
+                  </>
+                }
               >
-                <ListeningHeatmap entries={heatmapEntries} />
-              </Section>
+                <DashboardOverviewSections
+                  topSongs={topSongs}
+                  topArtists={topArtists}
+                  genreBreakdown={genreBreakdown}
+                  moodTimeline={moodTimeline}
+                  heatmapEntries={heatmapEntries}
+                  statsEntries={stats.rawEnrichedHistory}
+                  isSimpleDashboard={isSimpleDashboard}
+                  dashboardTheme={dashboardTheme}
+                />
+              </Suspense>
             </div>
 
             {shouldShowAdvancedInsights ? (
@@ -2020,7 +1960,7 @@ export default function App() {
             </div>
           </Section>
         )}
-      </div>
+      </motion.div>
     </main>
   );
 }

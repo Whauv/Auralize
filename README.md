@@ -78,6 +78,18 @@ python -m uvicorn app.main:app --reload
 
 Backend runs on `http://localhost:8000`.
 
+### Backend Linting With Ruff
+
+```powershell
+cd C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+python -m ruff check app
+python -m ruff format app
+```
+
+Ruff is configured in [backend/pyproject.toml](C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend\pyproject.toml) and is scoped to the backend app package.
+
 ### Frontend
 
 ```powershell
