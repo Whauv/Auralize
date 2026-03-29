@@ -44,8 +44,10 @@ export function MusicPassportCard({
   );
 
   return (
-    <div className="relative w-[840px] overflow-hidden border border-white/12 bg-[linear-gradient(155deg,#090c13_0%,#121018_44%,#1b1621_72%,#24181a_100%)] p-8 text-white shadow-[0_34px_160px_rgba(3,7,18,0.48)]">
+    <div className="relative w-[840px] overflow-hidden border border-white/12 bg-[linear-gradient(155deg,#090c13_0%,#0f121d_32%,#19131b_68%,#24181a_100%)] p-8 text-white shadow-[0_34px_160px_rgba(3,7,18,0.48)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.16),transparent_28%),radial-gradient(circle_at_85%_14%,rgba(255,255,255,0.05),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(196,107,123,0.12),transparent_24%)]" />
+      <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:88px_88px]" />
+      <div className="absolute -right-10 top-12 h-44 w-44 rounded-full border border-white/8 bg-white/4 shadow-[inset_0_0_0_18px_rgba(212,168,83,0.05)]" />
 
       <div className="relative z-10 flex flex-col gap-7">
         <div className="flex items-start justify-between gap-8">
@@ -53,7 +55,7 @@ export function MusicPassportCard({
             <p className="text-xs uppercase tracking-[0.42em] text-white/55">
               Music Passport
             </p>
-            <h2 className="font-display mt-3 text-[4.2rem] font-black leading-[0.9] tracking-[-0.03em]">
+            <h2 className="font-display mt-3 text-[4.2rem] font-black leading-[0.88]">
               Your sonic identity, distilled.
             </h2>
             <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
@@ -69,7 +71,7 @@ export function MusicPassportCard({
             </div>
           </div>
 
-          <div className="w-[270px] rounded-[1.8rem] border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
+          <div className="w-[270px] rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(0,0,0,0.18))] p-5 backdrop-blur-sm">
             <p className="text-[10px] uppercase tracking-[0.34em] text-white/55">
               #1 Artist
             </p>
@@ -96,18 +98,18 @@ export function MusicPassportCard({
         </div>
 
         <div className="grid gap-5" style={{ gridTemplateColumns: "1.12fr 0.88fr" }}>
-          <div className="rounded-[1.9rem] border border-white/10 bg-black/18 p-6 backdrop-blur-sm">
+          <div className="rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.18))] p-6 backdrop-blur-sm">
             <div className="flex items-start justify-between gap-5">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.34em] text-white/55">
                   Total Listening
                 </p>
-                <p className="mt-3 text-[4.5rem] font-black leading-[0.88]">
+                <p className="font-display mt-3 text-[4.5rem] leading-[0.88]">
                   {formatHours(data.totalListeningHours)}
                 </p>
               </div>
 
-              <div className="rounded-[1.5rem] border border-white/10 bg-white/8 px-5 py-4 text-right">
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/8 px-5 py-4 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">
                   Mood
                 </p>
@@ -127,7 +129,7 @@ export function MusicPassportCard({
                 {data.topSongs.map((song, index) => (
                   <div
                     key={`${song.title}-${song.artist}`}
-                    className="grid grid-cols-[46px_52px_minmax(0,1fr)] items-center gap-4 rounded-[1.3rem] border border-white/8 bg-white/7 px-4 py-3"
+                    className="grid grid-cols-[46px_52px_minmax(0,1fr)] items-center gap-4 rounded-[1.3rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] px-4 py-3"
                   >
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-white/16 via-white/8 to-amber-300/18 text-lg font-bold text-white">
                       {index + 1}
@@ -154,7 +156,7 @@ export function MusicPassportCard({
           </div>
 
           <div className="flex flex-col gap-5">
-            <div className="rounded-[1.9rem] border border-white/10 bg-black/22 p-6 backdrop-blur-sm">
+            <div className="rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(0,0,0,0.2))] p-6 backdrop-blur-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.34em] text-white/55">
@@ -188,11 +190,11 @@ export function MusicPassportCard({
               </div>
             </div>
 
-            <div className="rounded-[1.9rem] border border-white/10 bg-white/6 p-6">
+            <div className="rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-6">
               <p className="text-[10px] uppercase tracking-[0.34em] text-white/58">
                 Listening Streak
               </p>
-              <p className="mt-3 text-[3.5rem] font-black leading-none text-white">
+              <p className="font-display mt-3 text-[3.5rem] leading-none text-white">
                 {data.listeningStreakDays}
               </p>
               <p className="mt-3 text-sm leading-relaxed text-white/65">
