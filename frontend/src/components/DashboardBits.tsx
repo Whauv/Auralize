@@ -22,7 +22,7 @@ export function Section({
 }) {
   return (
     <motion.section
-      className={`rounded-[2rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur ${className}`}
+      className={`section-panel rounded-[2rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur ${className}`}
       initial={{ opacity: 0, y: 28 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}

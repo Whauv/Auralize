@@ -143,6 +143,84 @@ body::before {
   z-index: 60;
 }
 
+.section-panel {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 420px;
+}
+
+.intro-splash-card {
+  position: relative;
+  width: min(92vw, 620px);
+  padding: 2rem;
+  border: 1px solid rgba(212, 168, 83, 0.2);
+  background:
+    radial-gradient(circle at top, rgba(212, 168, 83, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(10, 15, 30, 0.98));
+  box-shadow: 0 36px 120px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+  isolation: isolate;
+  backdrop-filter: blur(18px);
+}
+
+.intro-splash-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, transparent 0%, rgba(240, 208, 128, 0.12) 40%, transparent 70%);
+  transform: translateX(-100%);
+  animation: introSweep 1.6s ease-out 0.25s forwards;
+  z-index: -1;
+}
+
+.intro-splash-ring {
+  position: absolute;
+  right: -2rem;
+  top: -2rem;
+  width: 9rem;
+  height: 9rem;
+  border: 1px solid rgba(212, 168, 83, 0.22);
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 0 0 1.25rem rgba(124, 58, 90, 0.08),
+    0 0 48px rgba(212, 168, 83, 0.08);
+  animation: driftSpin 12s linear infinite;
+}
+
+.intro-splash-kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: #f59e0b;
+}
+
+.intro-splash-title {
+  margin: 0.9rem 0 0;
+  max-width: 12ch;
+  font-family: "Sora", "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: clamp(2.2rem, 6vw, 4.4rem);
+  line-height: 0.92;
+  color: #fff;
+}
+
+.intro-splash-copy {
+  margin: 1rem 0 0;
+  max-width: 34rem;
+  color: #9ca3af;
+  font-size: 0.98rem;
+}
+
+.intro-splash-progress {
+  margin-top: 1.25rem;
+  height: 4px;
+  width: 100%;
+  border-radius: 9999px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(124, 58, 90, 0.95), rgba(212, 168, 83, 0.98));
+  box-shadow: 0 0 22px rgba(212, 168, 83, 0.2);
+}
+
 .ambient-staff::before {
   top: 16px;
 }
@@ -180,5 +258,19 @@ body::before {
   }
   to {
     transform: rotate(360deg) translateY(0px);
+  }
+}
+
+@keyframes introSweep {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
   }
 }
