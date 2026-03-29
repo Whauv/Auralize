@@ -198,6 +198,57 @@ function AmbientMusicScene() {
   );
 }
 
+function HeroAlbumStack({
+  songs,
+  accent
+}: {
+  songs: Array<{ title: string; artist: string; thumbnail: string | null }>;
+  accent: string;
+}) {
+  const fallbackCards = [
+    { title: "Signal Bloom", artist: "Auralize Mix", thumbnail: null },
+    { title: "Nocturne Replay", artist: "Night Rotation", thumbnail: null },
+    { title: "Golden Static", artist: "Mood Capsule", thumbnail: null }
+  ];
+  const cards = (songs.length ? songs.slice(0, 3) : fallbackCards).map((song, index) => ({
+    ...song,
+    rotation: index === 0 ? -9 : index === 1 ? 8 : -3,
+    top: index === 0 ? 92 : index === 1 ? 24 : 174,
+    left: index === 0 ? 10 : index === 1 ? 158 : 188
+  }));
+
+  return (
+    <div className="album-stack hidden xl:block">
+      {cards.map((song, index) => (
+        <motion.div
+          key={`${song.title}-${song.artist}-${index}`}
+          className="album-card"
+          initial={{ opacity: 0, y: 18, rotate: song.rotation - 3 }}
+          animate={{ opacity: 1, y: 0, rotate: song.rotation }}
+          transition={{ duration: 0.8, delay: 0.12 * index, ease: [0.22, 1, 0.36, 1] }}
+          style={{ top: `${song.top}px`, left: `${song.left}px` }}
+        >
+          {song.thumbnail ? (
+            <img className="album-card-cover" src={song.thumbnail} alt={song.title} />
+          ) : (
+            <div
+              className="album-card-cover"
+              style={{
+                background: `linear-gradient(145deg, ${accent}55 0%, rgba(15,23,42,0.9) 55%, rgba(196,107,123,0.4) 100%)`
+              }}
+            />
+          )}
+          <div className="album-card-copy">
+            <p className="album-card-kicker">{index === 0 ? "Top Song" : "In Rotation"}</p>
+            <p className="album-card-title">{song.title}</p>
+            <p className="album-card-meta">{song.artist}</p>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const { scrollYProgress } = useScroll();
   const prefersReducedMotion = useReducedMotion();
@@ -1008,7 +1059,7 @@ export default function App() {
         transition={{ duration: 1, ease: [0.19, 1, 0.22, 1] }}
       >
         <motion.section
-          className="relative overflow-hidden rounded-[2rem] border p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] backdrop-blur md:p-8"
+          className="hero-shell relative overflow-hidden rounded-[2rem] border p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] backdrop-blur md:p-8"
           style={{
             borderColor: dashboardTheme.panelBorder,
             background: dashboardTheme.heroGradient
@@ -1019,28 +1070,41 @@ export default function App() {
         >
           <div className="absolute inset-0" style={{ backgroundImage: dashboardTheme.heroGlow }} />
           <div className="relative">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
               <div>
                 <p className="mb-3 text-sm uppercase tracking-[0.35em]" style={{ color: dashboardTheme.accent }}>
                   Your Music DNA
                 </p>
-                <h1 className="max-w-3xl text-3xl font-semibold leading-tight text-white md:text-5xl lg:text-6xl">
+                <h1 className="font-display max-w-4xl text-[2.85rem] leading-[0.94] text-white md:text-[4.35rem] lg:text-[5.25rem]">
                   Upload your history, paste a profile, or switch to live scrobbles.
                 </h1>
-                <p className="mt-4 max-w-3xl text-sm text-[#9CA3AF] md:text-lg">
+                <p className="font-body mt-5 max-w-3xl text-sm leading-7 text-[#c0cad6] md:text-[1.08rem]">
                   Use Google Takeout for YouTube Music-only analytics, switch to the unified YouTube tab to include music plays from the main YouTube app too, paste a YouTube Music profile link for a lightweight public preview, or use Last.fm Live Mode for a fresh snapshot of your listening identity.
                 </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <div className="hero-chip rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/80">
+                    Recap-ready
+                  </div>
+                  <div className="hero-chip rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/80">
+                    Music passport
+                  </div>
+                  <div className="hero-chip rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/80">
+                    Unified YouTube mode
+                  </div>
+                </div>
               </div>
-
-              {dashboard?.source === "lastfm" ? (
-                <span className="w-fit rounded-full border border-[#67C3C0]/25 bg-[#0d1f28]/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
-                  Live Mode
-                </span>
-              ) : isYoutubeProfileMode ? (
-                <span className="w-fit rounded-full border border-[#67C3C0]/25 bg-[#0d1f28]/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
-                  Public Profile Preview
-                </span>
-              ) : null}
+              <div className="flex flex-col gap-4 xl:items-end">
+                {dashboard?.source === "lastfm" ? (
+                  <span className="hero-chip w-fit rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
+                    Live Mode
+                  </span>
+                ) : isYoutubeProfileMode ? (
+                  <span className="hero-chip w-fit rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
+                    Public Profile Preview
+                  </span>
+                ) : null}
+                <HeroAlbumStack songs={topSongs} accent={dashboardTheme.accent} />
+              </div>
             </div>
 
             <form className="mt-8 flex flex-col gap-5" onSubmit={handleSubmit}>

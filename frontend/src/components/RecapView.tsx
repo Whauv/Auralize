@@ -233,7 +233,7 @@ export function RecapView({
             </div>
 
             <div className="grid gap-5 xl:grid-cols-[1.1fr_0.49fr]">
-              <div className={`relative min-h-[640px] overflow-hidden rounded-[2.25rem] border border-[#1E293B] ${activeSlide.palette} p-6 shadow-[0_35px_140px_rgba(2,6,23,0.42)] md:p-8`}>
+              <div className={`recap-stage relative min-h-[640px] overflow-hidden rounded-[2.25rem] border border-[#1E293B] ${activeSlide.palette} p-6 shadow-[0_35px_140px_rgba(2,6,23,0.42)] md:p-8`}>
                 <div className="pointer-events-none absolute inset-0">
                   <div className="absolute -left-16 top-8 h-44 w-44 rounded-full blur-3xl" style={{ backgroundColor: `${theme.glowA}22` }} />
                   <div className="absolute right-0 top-0 h-52 w-52 rounded-full blur-3xl" style={{ backgroundColor: `${theme.glowB}22` }} />
@@ -242,7 +242,7 @@ export function RecapView({
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeSlide.id}
-                    className="relative z-10 flex h-full flex-col rounded-[2rem] border border-[#1E293B] bg-[linear-gradient(180deg,rgba(10,15,30,0.62),rgba(17,24,39,0.4))] p-5 backdrop-blur-[3px] md:p-6"
+                    className="relative z-10 flex h-full flex-col rounded-[2rem] border border-[#1E293B] bg-[linear-gradient(180deg,rgba(10,15,30,0.56),rgba(17,24,39,0.34))] p-5 backdrop-blur-[3px] md:p-6"
                     initial={{ opacity: 0, x: 32, scale: 0.98 }}
                     animate={{ opacity: 1, x: 0, scale: 1 }}
                     exit={{ opacity: 0, x: -32, scale: 0.98 }}
@@ -260,7 +260,7 @@ export function RecapView({
                       <p className="text-xs uppercase tracking-[0.35em]" style={{ color: theme.accentSoft }}>
                         {theme.kicker}
                       </p>
-                      <h3 className="font-display mt-4 text-4xl font-black leading-[0.95] tracking-[-0.03em] text-white md:text-6xl">
+                      <h3 className="font-display mt-4 text-4xl leading-[0.9] text-white md:text-6xl">
                         {activeSlide.title}
                       </h3>
                       <p className="mt-4 max-w-2xl text-sm text-[#D6D3D1] md:text-lg">

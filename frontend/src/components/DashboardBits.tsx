@@ -32,8 +32,8 @@ export function Section({
         <p className="text-xs uppercase tracking-[0.35em] text-[#F59E0B]">
           Insight
         </p>
-        <h2 className="text-2xl font-semibold text-[var(--heading,#FFFFFF)]">{title}</h2>
-        <p className="text-sm text-[var(--subtext,#9CA3AF)]">{subtitle}</p>
+        <h2 className="font-display text-[1.9rem] leading-[0.96] text-[var(--heading,#FFFFFF)]">{title}</h2>
+        <p className="font-body text-sm leading-6 text-[var(--subtext,#9CA3AF)]">{subtitle}</p>
       </div>
       {children}
     </motion.section>
@@ -88,10 +88,10 @@ export function ChartTooltip({
 
   const value = payload[0]?.value;
   return (
-      <div
-        className="rounded-2xl border border-[var(--panel-border,#1E293B)] px-4 py-3 text-sm text-slate-100 shadow-2xl shadow-black/30"
-        style={{ backgroundColor: "color-mix(in srgb, var(--panel-bg,#111827) 95%, transparent)" }}
-      >
+    <div
+      className="rounded-2xl border border-[var(--panel-border,#1E293B)] px-4 py-3 text-sm text-slate-100 shadow-2xl shadow-black/30"
+      style={{ backgroundColor: "color-mix(in srgb, var(--panel-bg,#111827) 95%, transparent)" }}
+    >
       {label ? <p className="font-medium text-[var(--heading,#FFFFFF)]">{label}</p> : null}
       <p className="mt-1 text-[var(--accent,#D4A853)]">{value} plays</p>
     </div>
