@@ -55,7 +55,7 @@ export function MusicPassportCard({
             <p className="text-xs uppercase tracking-[0.42em] text-white/55">
               Music Passport
             </p>
-            <h2 className="font-display mt-3 text-[4.2rem] font-black leading-[0.88]">
+            <h2 className="font-display mt-3 text-[4.2rem] font-black leading-[0.95]">
               Your sonic identity, distilled.
             </h2>
             <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]">
@@ -86,10 +86,10 @@ export function MusicPassportCard({
                 <div className="h-20 w-20 rounded-[1.4rem] bg-white/10" />
               )}
               <div className="min-w-0">
-                <p className="font-display text-2xl font-bold leading-tight text-white">
+                <p className="font-display text-2xl font-bold leading-[1.08] text-white">
                   {data.topArtist.name}
                 </p>
-                <p className="mt-2 text-sm text-white/60">
+                <p className="mt-2 leading-5 text-sm text-white/60">
                   the artist defining your profile
                 </p>
               </div>
@@ -104,7 +104,7 @@ export function MusicPassportCard({
                 <p className="text-[10px] uppercase tracking-[0.34em] text-white/55">
                   Total Listening
                 </p>
-                <p className="font-display mt-3 text-[4.5rem] leading-[0.88]">
+                <p className="font-display mt-3 text-[4.5rem] leading-[0.96]">
                   {formatHours(data.totalListeningHours)}
                 </p>
               </div>
@@ -129,7 +129,7 @@ export function MusicPassportCard({
                 {data.topSongs.map((song, index) => (
                   <div
                     key={`${song.title}-${song.artist}`}
-                    className="grid grid-cols-[46px_52px_minmax(0,1fr)] items-center gap-4 rounded-[1.3rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] px-4 py-3"
+                    className="grid min-h-[82px] grid-cols-[46px_52px_minmax(0,1fr)] items-start gap-4 rounded-[1.3rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] px-4 py-4"
                   >
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-white/16 via-white/8 to-amber-300/18 text-lg font-bold text-white">
                       {index + 1}
@@ -143,11 +143,11 @@ export function MusicPassportCard({
                     ) : (
                       <div className="h-[52px] w-[52px] rounded-[1rem] bg-white/10" />
                     )}
-                    <div className="min-w-0">
-                      <p className="truncate text-[1.02rem] font-semibold text-white">
+                    <div className="min-w-0 self-center pt-0.5">
+                      <p className="truncate text-[1.02rem] font-semibold leading-[1.15] text-white">
                         {song.title}
                       </p>
-                      <p className="truncate text-sm text-white/60">{song.artist}</p>
+                      <p className="truncate pt-1 text-sm leading-5 text-white/60">{song.artist}</p>
                     </div>
                   </div>
                 ))}
@@ -194,10 +194,10 @@ export function MusicPassportCard({
               <p className="text-[10px] uppercase tracking-[0.34em] text-white/58">
                 Listening Streak
               </p>
-              <p className="font-display mt-3 text-[3.5rem] leading-none text-white">
+              <p className="font-display mt-3 text-[3.5rem] leading-[0.96] text-white">
                 {data.listeningStreakDays}
               </p>
-              <p className="mt-3 text-sm leading-relaxed text-white/65">
+              <p className="mt-3 text-sm leading-6 text-white/65">
                 longest consecutive days with listens across your current profile snapshot
               </p>
             </div>

@@ -280,7 +280,6 @@ export default function App() {
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [showIntro, setShowIntro] = useState(true);
   const passportRef = useRef<HTMLDivElement | null>(null);
-  const passportExportRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
@@ -441,6 +440,7 @@ export default function App() {
 
     return buildPassportData(stats, genreBreakdown, moodTimeline);
   }, [dashboard?.source, stats, genreBreakdown, moodTimeline]);
+  const activePassport = sharedPassport ?? passportData ?? null;
   const tasteEvolution = useMemo<TasteEvolutionPoint[]>(() => {
     if (!stats || isYoutubeProfileMode) {
       return [];
@@ -588,15 +588,10 @@ export default function App() {
     setSavedSessions((current) => current.filter((session) => session.id !== sessionId));
   }
 
-  async function handleExportAsImage() {
-    const exportNode = passportExportRef.current ?? passportRef.current;
-    if (!exportNode) {
-      return;
-    }
-
+  async function waitForExportAssets(node: HTMLElement) {
     await document.fonts.ready;
 
-    const images = Array.from(exportNode.querySelectorAll("img"));
+    const images = Array.from(node.querySelectorAll("img"));
     await Promise.all(
       images.map(
         (image) =>
@@ -611,24 +606,319 @@ export default function App() {
           })
       )
     );
+  }
 
-    const canvas = await html2canvas(exportNode, {
-      backgroundColor: "#040b17",
+  async function renderNodeToCanvas(node: HTMLElement, backgroundColor: string | null) {
+    await waitForExportAssets(node);
+    const rect = node.getBoundingClientRect();
+
+    return html2canvas(node, {
+      backgroundColor,
       scale: 2.5,
       useCORS: true,
+      foreignObjectRendering: false,
+      imageTimeout: 15000,
       logging: false,
-      width: exportNode.scrollWidth,
-      height: exportNode.scrollHeight,
-      windowWidth: exportNode.scrollWidth,
-      windowHeight: exportNode.scrollHeight,
+      width: Math.ceil(rect.width),
+      height: Math.ceil(rect.height),
+      windowWidth: Math.ceil(rect.width),
+      windowHeight: Math.ceil(rect.height),
       scrollX: 0,
       scrollY: 0
     });
+  }
+
+  async function renderPassportCanvas() {
+    if (!passportRef.current) {
+      return null;
+    }
+
+    return renderNodeToCanvas(passportRef.current, "#06070b");
+  }
+
+  function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
     const link = document.createElement("a");
     link.href = canvas.toDataURL("image/png");
-    link.download = "my-music-passport.png";
+    link.download = filename;
     link.click();
+  }
+
+  async function loadCanvasImage(src: string | null) {
+    if (!src) {
+      return null;
+    }
+
+    return new Promise<HTMLImageElement | null>((resolve) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = src;
+    });
+  }
+
+  function drawRoundedImage(
+    ctx: CanvasRenderingContext2D,
+    image: CanvasImageSource,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.clip();
+    ctx.drawImage(image, x, y, width, height);
+    ctx.restore();
+  }
+
+  async function buildInstagramStoryCanvas() {
+    if (!activePassport) {
+      return null;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return null;
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, "#0a0c11");
+    gradient.addColorStop(0.44, "#15131d");
+    gradient.addColorStop(1, "#221617");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
+    for (let x = 0; x < canvas.width; x += 96) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 96) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const glow = ctx.createRadialGradient(190, 250, 40, 190, 250, 330);
+    glow.addColorStop(0, "rgba(212,168,83,0.28)");
+    glow.addColorStop(1, "rgba(212,168,83,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const sideGlow = ctx.createRadialGradient(860, 1460, 60, 860, 1460, 360);
+    sideGlow.addColorStop(0, "rgba(196,107,123,0.22)");
+    sideGlow.addColorStop(1, "rgba(196,107,123,0)");
+    ctx.fillStyle = sideGlow;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.font = "600 26px Instrument Sans, Arial";
+    ctx.fillText("AURALIZE", 86, 112);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 94px Archivo Black, Arial";
+    ctx.fillText("Music", 82, 214);
+    ctx.fillText("Passport", 82, 312);
+
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.font = "500 32px Instrument Sans, Arial";
+    ctx.fillText("Made for Instagram stories", 86, 372);
+
+    const storyPanelX = 60;
+    const storyPanelY = 430;
+    const storyPanelWidth = 960;
+    const storyPanelHeight = 1290;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.035)";
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(storyPanelX, storyPanelY, storyPanelWidth, storyPanelHeight, 44);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    const topArtistImage = await loadCanvasImage(activePassport.topArtist.thumbnail);
+    if (topArtistImage) {
+      drawRoundedImage(ctx, topArtistImage, 92, 474, 156, 156, 34);
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.beginPath();
+      ctx.roundRect(92, 474, 156, 156, 34);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "rgba(255,255,255,0.58)";
+    ctx.font = "600 22px Instrument Sans, Arial";
+    ctx.fillText("#1 ARTIST", 278, 516);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 56px Space Grotesk, Arial";
+    ctx.fillText(activePassport.topArtist.name, 278, 584, 700);
+
+    ctx.fillStyle = "rgba(255,255,255,0.68)";
+    ctx.font = "500 28px Instrument Sans, Arial";
+    ctx.fillText("leads this snapshot", 278, 628);
+
+    const statCardY = 684;
+    const statCardWidth = 286;
+    const statGap = 24;
+    const statCards = [
+      { label: "Listening", value: `${activePassport.totalListeningHours.toFixed(1)} hrs` },
+      { label: "Mood", value: activePassport.dominantMood },
+      { label: "Genre", value: activePassport.dominantGenre }
+    ];
+
+    statCards.forEach((card, index) => {
+      const x = 92 + index * (statCardWidth + statGap);
+      ctx.fillStyle = "rgba(255,255,255,0.04)";
+      ctx.beginPath();
+      ctx.roundRect(x, statCardY, statCardWidth, 146, 32);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.font = "600 20px Instrument Sans, Arial";
+      ctx.fillText(card.label.toUpperCase(), x + 28, statCardY + 42);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "800 40px Space Grotesk, Arial";
+      ctx.fillText(card.value, x + 28, statCardY + 98, statCardWidth - 56);
+    });
+
+    ctx.fillStyle = "rgba(255,255,255,0.58)";
+    ctx.font = "600 24px Instrument Sans, Arial";
+    ctx.fillText("Top songs in this frame", 92, 894);
+
+    const songs = activePassport.topSongs.slice(0, 4);
+    const songThumbs = await Promise.all(songs.map((song) => loadCanvasImage(song.thumbnail)));
+
+    songs.forEach((song, index) => {
+      const y = 928 + index * 144;
+
+      ctx.fillStyle = "rgba(255,255,255,0.04)";
+      ctx.beginPath();
+      ctx.roundRect(92, y, 896, 126, 30);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(212,168,83,0.18)";
+      ctx.beginPath();
+      ctx.roundRect(116, y + 31, 64, 64, 24);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "700 30px Space Grotesk, Arial";
+      ctx.fillText(String(index + 1), 138, y + 74);
+
+      const thumb = songThumbs[index];
+      if (thumb) {
+        drawRoundedImage(ctx, thumb, 206, y + 19, 88, 88, 24);
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.beginPath();
+        ctx.roundRect(206, y + 19, 88, 88, 24);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "700 28px Space Grotesk, Arial";
+      ctx.fillText(song.title, 322, y + 58, 620);
+
+      ctx.fillStyle = "rgba(255,255,255,0.66)";
+      ctx.font = "500 24px Instrument Sans, Arial";
+      ctx.fillText(song.artist, 322, y + 94, 620);
+    });
+
+    const streakCardY = 1518;
+
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.beginPath();
+    ctx.roundRect(92, streakCardY, 896, 132, 30);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,0.58)";
+    ctx.font = "600 22px Instrument Sans, Arial";
+    ctx.fillText("LISTENING STREAK", 126, streakCardY + 42);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 54px Space Grotesk, Arial";
+    ctx.fillText(`${activePassport.listeningStreakDays} days`, 126, streakCardY + 94);
+
+    ctx.fillStyle = "rgba(255,255,255,0.68)";
+    ctx.font = "500 26px Instrument Sans, Arial";
+    ctx.fillText("Share-ready for stories or posts", 86, 1846);
+
+    return canvas;
+  }
+
+  async function handleExportAsImage() {
+    const canvas = await renderPassportCanvas();
+    if (!canvas) {
+      return;
+    }
+
+    downloadCanvas(canvas, "my-music-passport.png");
     setActionMessage("Passport exported as PNG.");
+  }
+
+  async function handleExportInstagramStory() {
+    const canvas = await buildInstagramStoryCanvas();
+    if (!canvas) {
+      return;
+    }
+
+    downloadCanvas(canvas, "my-music-passport-instagram-story.png");
+    setActionMessage("Instagram story image exported as PNG.");
+  }
+
+  async function handleShareToInstagram() {
+    const canvas = await buildInstagramStoryCanvas();
+    if (!canvas) {
+      return;
+    }
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((value) => resolve(value), "image/png");
+    });
+    if (!blob) {
+      setActionMessage("Could not prepare the Instagram image.");
+      return;
+    }
+
+    const file = new File([blob], "auralize-instagram-story.png", { type: "image/png" });
+    try {
+      if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+        await navigator.share({
+          files: [file],
+          title: "My Auralize Music Passport",
+          text: "Shared from Auralize"
+        });
+        setActionMessage("Share sheet opened. Choose Instagram if it appears on your device.");
+        return;
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setActionMessage("Instagram sharing was canceled.");
+        return;
+      }
+    }
+
+    downloadCanvas(canvas, "auralize-instagram-story.png");
+    setActionMessage(
+      "Direct Instagram sharing is not available here, so a story-ready PNG was downloaded instead."
+    );
   }
 
   async function handleCopyShareableLink(payload: MusicPassportData) {
@@ -885,11 +1175,6 @@ export default function App() {
       <main className="relative isolate min-h-screen px-4 py-8 text-slate-100 md:px-6">
         <motion.div className="scroll-glow" style={{ scaleX: progressScale }} />
         <AmbientMusicScene />
-        <div className="pointer-events-none fixed -left-[10000px] top-0 opacity-0">
-          <div ref={passportExportRef} className="w-fit bg-[#040b17] p-8">
-            <MusicPassportCard data={sharedPassport} />
-          </div>
-        </div>
         <div className="relative z-10 mx-auto flex max-w-5xl flex-col gap-8">
           <motion.section
             className="rounded-[2rem] border border-[#1E293B] bg-[#111827] p-6 md:p-8 backdrop-blur"
@@ -921,6 +1206,20 @@ export default function App() {
                 type="button"
               >
                 Copy Shareable Link
+              </button>
+              <button
+                className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
+                onClick={() => void handleShareToInstagram()}
+                type="button"
+              >
+                Share to Instagram
+              </button>
+              <button
+                className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
+                onClick={() => void handleExportInstagramStory()}
+                type="button"
+              >
+                Export Instagram Story
               </button>
             </div>
 
@@ -1026,13 +1325,6 @@ export default function App() {
         ) : null}
       </AnimatePresence>
       <AmbientMusicScene />
-      {passportData ? (
-        <div className="pointer-events-none fixed -left-[10000px] top-0 opacity-0">
-          <div ref={passportExportRef} className="w-fit bg-[#06070b]">
-            <MusicPassportCard data={passportData} />
-          </div>
-        </div>
-      ) : null}
       {stats && !isYoutubeProfileMode ? (
         <Suspense fallback={null}>
           <RecapView
@@ -1816,8 +2108,22 @@ export default function App() {
                   >
                     Copy Shareable Link
                   </button>
+                  <button
+                    className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
+                    onClick={() => void handleShareToInstagram()}
+                    type="button"
+                  >
+                    Share to Instagram
+                  </button>
+                  <button
+                    className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
+                    onClick={() => void handleExportInstagramStory()}
+                    type="button"
+                  >
+                    Export Instagram Story
+                  </button>
                   <p className="text-sm text-[#9CA3AF]">
-                    Shared links open a read-only passport card, so anyone with the URL sees the compact snapshot instead of the full dashboard.
+                    Instagram sharing uses your device share sheet when supported. Otherwise, Auralize downloads a story-ready PNG you can upload manually.
                   </p>
                 </div>
               </div>

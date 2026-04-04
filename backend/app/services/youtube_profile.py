@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 from html import unescape
+import re
 from urllib.parse import urlparse
 
 import requests
@@ -51,7 +51,11 @@ def parse_youtube_music_profile_url(url: str) -> dict[str, str]:
     }
 
 
-def extract_profile_metadata(html: str, fallback_handle: str, fallback_url: str) -> dict[str, str | None]:
+def extract_profile_metadata(
+    html: str,
+    fallback_handle: str,
+    fallback_url: str,
+) -> dict[str, str | None]:
     title_match = OG_TITLE_PATTERN.search(html) or TITLE_PATTERN.search(html)
     image_match = OG_IMAGE_PATTERN.search(html)
 

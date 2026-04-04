@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+import requests
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from dotenv import load_dotenv
-import requests
 
 from app.services.lastfm_api import build_lastfm_dashboard
 from app.services.parser import parse_unified_watch_history, parse_watch_history
@@ -19,10 +19,12 @@ from app.services.stats import (
     build_stats_payload,
     merge_history_with_enrichment,
 )
-from app.services.youtube_profile import fetch_youtube_music_profile
 from app.services.youtube_api import enrich_with_youtube_api, is_music_video
+from app.services.youtube_profile import fetch_youtube_music_profile
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
+UPLOAD_FILE = File(...)
 
 app = FastAPI(title="Auralize API")
 
@@ -71,7 +73,8 @@ def build_quality_summary(
     music_headers = sum(
         1
         for entry in payload
-        if isinstance(entry, dict) and str(entry.get("header") or "").strip().lower() == "youtube music"
+        if isinstance(entry, dict)
+        and str(entry.get("header") or "").strip().lower() == "youtube music"
     )
     warnings: list[str] = []
 
@@ -79,16 +82,19 @@ def build_quality_summary(
         warnings.append("This file is empty, so there is no listening data to analyze.")
     if usable_entries == 0:
         warnings.append(
-            "No playable YouTube Music watch entries were found. This export may mostly contain searches or standard YouTube activity."
+            "No playable YouTube Music watch entries were found. "
+            "This export may mostly contain searches or standard YouTube activity."
         )
     elif usable_entries < 10:
         warnings.append(
-            "Only a small number of playable music entries were found, so the dashboard may feel sparse."
+            "Only a small number of playable music entries were found, "
+            "so the dashboard may feel sparse."
         )
 
     if total_entries and search_entries / total_entries >= 0.35:
         warnings.append(
-            "A large share of this export looks like search history, which can limit the quality of the music analysis."
+            "A large share of this export looks like search history, "
+            "which can limit the quality of the music analysis."
         )
 
     if total_entries and usable_entries / total_entries < 0.15:
@@ -116,7 +122,8 @@ def build_unified_quality_summary(
 
     if candidate_history and len(filtered_history) < len(candidate_history):
         summary["warnings"].append(
-            "Regular YouTube watches were checked for music signals, and non-music videos were excluded from this unified view."
+            "Regular YouTube watches were checked for music signals, "
+            "and non-music videos were excluded from this unified view."
         )
 
     if not filtered_history:
@@ -152,7 +159,9 @@ async def parse_upload_file(file: UploadFile) -> tuple[list[dict[str, Any]], dic
     return parsed_history, build_quality_summary(payload, parsed_history)
 
 
-async def parse_unified_upload_file(file: UploadFile) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+async def parse_unified_upload_file(
+    file: UploadFile,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if file.content_type not in {"application/json", "text/json", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="Please upload a JSON file.")
 
@@ -173,14 +182,8 @@ async def parse_unified_upload_file(file: UploadFile) -> tuple[list[dict[str, An
         return candidate_history, build_unified_quality_summary(payload, candidate_history, [])
 
     enriched_history = load_enriched_history(candidate_history)
-    music_ids = {
-        str(entry["videoId"])
-        for entry in enriched_history
-        if is_music_video(entry)
-    }
-    filtered_history = [
-        entry for entry in candidate_history if str(entry["videoId"]) in music_ids
-    ]
+    music_ids = {str(entry["videoId"]) for entry in enriched_history if is_music_video(entry)}
+    filtered_history = [entry for entry in candidate_history if str(entry["videoId"]) in music_ids]
     quality = build_unified_quality_summary(payload, candidate_history, filtered_history)
     return filtered_history, quality
 
@@ -213,33 +216,31 @@ async def parse_unified_upload_with_enrichment(
         entry for entry in candidate_enriched_history if is_music_video(entry)
     ]
     music_ids = {str(entry["videoId"]) for entry in filtered_enriched_history}
-    filtered_history = [
-        entry for entry in candidate_history if str(entry["videoId"]) in music_ids
-    ]
+    filtered_history = [entry for entry in candidate_history if str(entry["videoId"]) in music_ids]
     quality = build_unified_quality_summary(payload, candidate_history, filtered_history)
     return filtered_history, quality, filtered_enriched_history
 
 
 @app.post("/api/upload")
-async def upload_watch_history(file: UploadFile = File(...)) -> dict[str, Any]:
+async def upload_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
     parsed_history, quality = await parse_upload_file(file)
     return {"entries": parsed_history, "quality": quality}
 
 
 @app.post("/api/upload-unified")
-async def upload_unified_watch_history(file: UploadFile = File(...)) -> dict[str, Any]:
+async def upload_unified_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
     parsed_history, quality = await parse_unified_upload_file(file)
     return {"entries": parsed_history, "quality": quality}
 
 
 @app.post("/api/analyze")
-async def analyze_watch_history(file: UploadFile = File(...)) -> dict[str, Any]:
+async def analyze_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
     parsed_history, quality = await parse_upload_file(file)
     return build_takeout_analysis_response(parsed_history, quality, source="takeout")
 
 
 @app.post("/api/analyze-unified")
-async def analyze_unified_watch_history(file: UploadFile = File(...)) -> dict[str, Any]:
+async def analyze_unified_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
     parsed_history, quality, enriched_history = await parse_unified_upload_with_enrichment(file)
     dashboard = build_dashboard_payload(enriched_history, source="unified-takeout")
     return {
@@ -263,20 +264,23 @@ def load_enriched_history(parsed_history: list[dict[str, Any]]) -> list[dict[str
             detail = f"YouTube API request failed with status {response.status_code}."
         raise HTTPException(status_code=502, detail=detail) from exc
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Could not reach the YouTube Data API.") from exc
+        raise HTTPException(
+            status_code=502,
+            detail="Could not reach the YouTube Data API.",
+        ) from exc
 
     return merge_history_with_enrichment(parsed_history, enriched_lookup)
 
 
 @app.post("/api/stats")
-async def get_watch_history_stats(file: UploadFile = File(...)) -> dict[str, Any]:
+async def get_watch_history_stats(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
     parsed_history, _quality = await parse_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_stats_payload(enriched_history)
 
 
 @app.post("/api/stats-unified")
-async def get_unified_watch_history_stats(file: UploadFile = File(...)) -> dict[str, Any]:
+async def get_unified_watch_history_stats(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
     parsed_history, _quality = await parse_unified_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_stats_payload(enriched_history)
@@ -344,28 +348,28 @@ async def get_youtube_profile_dashboard(payload: YouTubeProfileRequest) -> dict[
 
 
 @app.post("/api/genre-breakdown")
-async def get_genre_breakdown(file: UploadFile = File(...)) -> list[dict[str, Any]]:
+async def get_genre_breakdown(file: UploadFile = UPLOAD_FILE) -> list[dict[str, Any]]:
     parsed_history, _quality = await parse_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_genre_breakdown(enriched_history)
 
 
 @app.post("/api/genre-breakdown-unified")
-async def get_unified_genre_breakdown(file: UploadFile = File(...)) -> list[dict[str, Any]]:
+async def get_unified_genre_breakdown(file: UploadFile = UPLOAD_FILE) -> list[dict[str, Any]]:
     parsed_history, _quality = await parse_unified_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_genre_breakdown(enriched_history)
 
 
 @app.post("/api/mood-timeline")
-async def get_mood_timeline(file: UploadFile = File(...)) -> list[dict[str, Any]]:
+async def get_mood_timeline(file: UploadFile = UPLOAD_FILE) -> list[dict[str, Any]]:
     parsed_history, _quality = await parse_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_mood_timeline(enriched_history)
 
 
 @app.post("/api/mood-timeline-unified")
-async def get_unified_mood_timeline(file: UploadFile = File(...)) -> list[dict[str, Any]]:
+async def get_unified_mood_timeline(file: UploadFile = UPLOAD_FILE) -> list[dict[str, Any]]:
     parsed_history, _quality = await parse_unified_upload_file(file)
     enriched_history = load_enriched_history(parsed_history)
     return build_mood_timeline(enriched_history)

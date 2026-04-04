@@ -180,6 +180,13 @@ body::after {
   opacity: 0.9;
 }
 
+.passport-export-shell {
+  display: inline-block;
+  width: 904px;
+  padding: 32px;
+  background: #06070b;
+}
+
 .hero-shell {
   position: relative;
   overflow: hidden;
