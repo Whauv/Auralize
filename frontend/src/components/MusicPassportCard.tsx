@@ -77,11 +77,13 @@ export function MusicPassportCard({
             </p>
             <div className="mt-4 flex items-center gap-4">
               {data.topArtist.thumbnail ? (
-                <img
-                  src={data.topArtist.thumbnail}
-                  alt={data.topArtist.name}
-                  className="h-20 w-20 rounded-[1.4rem] object-cover"
-                />
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.4rem] bg-white/[0.06]">
+                  <img
+                    src={data.topArtist.thumbnail}
+                    alt={data.topArtist.name}
+                    className="h-full w-full rounded-[1.4rem] object-cover"
+                  />
+                </div>
               ) : (
                 <div className="h-20 w-20 rounded-[1.4rem] bg-white/10" />
               )}
@@ -135,11 +137,13 @@ export function MusicPassportCard({
                       {index + 1}
                     </div>
                     {song.thumbnail ? (
-                      <img
-                        src={song.thumbnail}
-                        alt={song.title}
-                        className="h-[52px] w-[52px] rounded-[1rem] object-cover"
-                      />
+                      <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[1rem] bg-white/[0.06]">
+                        <img
+                          src={song.thumbnail}
+                          alt={song.title}
+                          className="h-full w-full rounded-[1rem] object-cover"
+                        />
+                      </div>
                     ) : (
                       <div className="h-[52px] w-[52px] rounded-[1rem] bg-white/10" />
                     )}

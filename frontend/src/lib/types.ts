@@ -150,3 +150,10 @@ export type SavedSession = {
   timeframe: TimeframeOption;
   dashboard: DashboardResponse;
 };
+
+export type CachedDashboardAnalysis = {
+  key: string;
+  savedAt: string;
+  source: DashboardResponse["source"] | "youtube-profile-request";
+  response: DashboardUploadResponse | DashboardResponse;
+};
