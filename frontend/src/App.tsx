@@ -12,7 +12,7 @@ import {
 } from "react";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import html2canvas from "html2canvas";
-import { MusicPassportCard, type MusicPassportData } from "./components/MusicPassportCard";
+import type { MusicPassportData } from "./components/MusicPassportCard";
 import {
   ChartSkeleton,
   LoadingSpinner,
@@ -47,16 +47,20 @@ import {
   buildGenreBreakdownFromHistory,
   buildMoodTimelineFromHistory,
   buildPersonaProfile,
+  buildFileAnalysisCacheKey,
+  buildJsonAnalysisCacheKey,
   buildSmartInsights,
   buildStatsPayloadFromHistory,
   buildTasteEvolution,
+  classifyGenre,
   copyText,
   decodePublicProfilePayload,
   decodeSharePayload,
   downloadTextFile,
   filterHistoryByTimeframe,
-  filterHistoryBySearchAndFacets,
   formatHours,
+  getCachedAnalysis,
+  getEntryMoodLabels,
   getPublicProfileUrl,
   getShareUrl,
   parseLastFmUsername,
@@ -65,6 +69,7 @@ import {
   postFile,
   postJson,
   RECAP_VARIANT_LABELS,
+  setCachedAnalysis,
   TIMEFRAME_COMPARE_OPTIONS,
   TIMEFRAME_LABELS,
   buildSavedSession
@@ -83,6 +88,11 @@ const DashboardAdvancedSections = lazy(() =>
 const DashboardOverviewSections = lazy(() =>
   import("./components/DashboardOverviewSections").then((module) => ({
     default: module.DashboardOverviewSections
+  }))
+);
+const MusicPassportCard = lazy(() =>
+  import("./components/MusicPassportCard").then((module) => ({
+    default: module.MusicPassportCard
   }))
 );
 
@@ -279,9 +289,10 @@ export default function App() {
   const [compareTimeframe, setCompareTimeframe] = useState<TimeframeOption>("90d");
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [showIntro, setShowIntro] = useState(true);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const passportRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
 
   useEffect(() => {
     const publicProfileEncoded = new URLSearchParams(window.location.search).get(PROFILE_SHARE_PARAM);
@@ -379,6 +390,16 @@ export default function App() {
     };
   }, [prefersReducedMotion]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchTerm]);
+
   const isYoutubeProfileMode = dashboard?.source === "youtube-profile";
   const timeframeEntries = useMemo(() => {
     if (!dashboard?.stats?.rawEnrichedHistory || isYoutubeProfileMode) {
@@ -387,18 +408,38 @@ export default function App() {
 
     return filterHistoryByTimeframe(dashboard.stats.rawEnrichedHistory, timeframe);
   }, [dashboard?.stats?.rawEnrichedHistory, isYoutubeProfileMode, timeframe]);
+  const indexedTimeframeEntries = useMemo(
+    () =>
+      timeframeEntries.map((entry) => ({
+        entry,
+        genre: classifyGenre(entry.tags, entry.artist),
+        moods: getEntryMoodLabels(entry),
+        searchText: `${entry.title} ${entry.artist} ${entry.tags.join(" ")}`.toLowerCase()
+      })),
+    [timeframeEntries]
+  );
   const filteredEntries = useMemo(() => {
-    if (!timeframeEntries.length) {
+    if (!indexedTimeframeEntries.length) {
       return [];
     }
 
-    return filterHistoryBySearchAndFacets(timeframeEntries, {
-      searchTerm: deferredSearchTerm,
-      genre: selectedGenre,
-      artist: selectedArtist,
-      mood: selectedMood
-    });
-  }, [timeframeEntries, deferredSearchTerm, selectedGenre, selectedArtist, selectedMood]);
+    const term = deferredSearchTerm.trim().toLowerCase();
+    return indexedTimeframeEntries
+      .filter(({ entry, genre, moods, searchText }) => {
+        const matchesSearch = !term || searchText.includes(term);
+        const matchesGenre = !selectedGenre || genre === selectedGenre;
+        const matchesArtist = !selectedArtist || entry.artist === selectedArtist;
+        const matchesMood = !selectedMood || moods.includes(selectedMood);
+        return matchesSearch && matchesGenre && matchesArtist && matchesMood;
+      })
+      .map(({ entry }) => entry);
+  }, [
+    indexedTimeframeEntries,
+    deferredSearchTerm,
+    selectedGenre,
+    selectedArtist,
+    selectedMood
+  ]);
 
   const stats = useMemo(() => {
     if (isYoutubeProfileMode) {
@@ -442,62 +483,68 @@ export default function App() {
   }, [dashboard?.source, stats, genreBreakdown, moodTimeline]);
   const activePassport = sharedPassport ?? passportData ?? null;
   const tasteEvolution = useMemo<TasteEvolutionPoint[]>(() => {
-    if (!stats || isYoutubeProfileMode) {
+    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       return [];
     }
 
     return buildTasteEvolution(stats.rawEnrichedHistory, timeframe);
-  }, [stats, isYoutubeProfileMode, timeframe]);
+  }, [stats, isYoutubeProfileMode, timeframe, dashboardDensity]);
   const smartInsights = useMemo<SmartInsight[]>(() => {
-    if (!stats || isYoutubeProfileMode) {
+    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       return [];
     }
 
     return buildSmartInsights(stats, genreBreakdown, moodTimeline);
-  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode]);
+  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
   const personaProfile = useMemo<PersonaProfile | null>(() => {
-    if (!stats || isYoutubeProfileMode) {
+    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       return null;
     }
 
     return buildPersonaProfile(stats, genreBreakdown, moodTimeline);
-  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode]);
+  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
   const memoryLane = useMemo<MemoryLaneEntry[]>(() => {
-    if (!stats || isYoutubeProfileMode) {
+    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       return [];
     }
 
     return buildMemoryLane(stats.rawEnrichedHistory);
-  }, [stats, isYoutubeProfileMode]);
+  }, [stats, isYoutubeProfileMode, dashboardDensity]);
   const achievementBadges = useMemo<AchievementBadge[]>(() => {
-    if (!stats || isYoutubeProfileMode) {
+    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       return [];
     }
 
     return buildAchievementBadges(stats, genreBreakdown, moodTimeline);
-  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode]);
+  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
   const artistOptions = useMemo(
-    () => Array.from(new Set(timeframeEntries.map((entry) => entry.artist))).sort((a, b) => a.localeCompare(b)),
-    [timeframeEntries]
+    () =>
+      Array.from(new Set(indexedTimeframeEntries.map(({ entry }) => entry.artist))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    [indexedTimeframeEntries]
   );
   const genreOptions = useMemo(
     () =>
-      Array.from(new Set(timeframeEntries.map((entry) => buildGenreBreakdownFromHistory([entry])[0]?.genre ?? "Other"))).sort((a, b) =>
+      Array.from(new Set(indexedTimeframeEntries.map(({ genre }) => genre))).sort((a, b) =>
         a.localeCompare(b)
       ),
-    [timeframeEntries]
+    [indexedTimeframeEntries]
   );
   const moodOptions = useMemo(
-    () => buildMoodTimelineFromHistory(timeframeEntries).map((entry) => entry.mood),
-    [timeframeEntries]
+    () =>
+      Array.from(new Set(indexedTimeframeEntries.flatMap(({ moods }) => moods))).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    [indexedTimeframeEntries]
   );
   const playlistBundles = useMemo<PlaylistBundle[]>(() => {
-    if (!stats || isYoutubeProfileMode) {
+    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       return [];
     }
 
     return buildPlaylistBundles(stats.rawEnrichedHistory, moodTimeline);
-  }, [stats, moodTimeline, isYoutubeProfileMode]);
+  }, [stats, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
   const selectedPlaylist = useMemo(
     () => playlistBundles.find((bundle) => bundle.id === selectedPlaylistId) ?? playlistBundles[0] ?? null,
     [playlistBundles, selectedPlaylistId]
@@ -657,9 +704,9 @@ export default function App() {
     });
   }
 
-  function drawRoundedImage(
+  function drawRoundedImageCover(
     ctx: CanvasRenderingContext2D,
-    image: CanvasImageSource,
+    image: HTMLImageElement,
     x: number,
     y: number,
     width: number,
@@ -670,7 +717,18 @@ export default function App() {
     ctx.beginPath();
     ctx.roundRect(x, y, width, height, radius);
     ctx.clip();
-    ctx.drawImage(image, x, y, width, height);
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(x, y, width, height);
+
+    const sourceWidth = image.naturalWidth || width;
+    const sourceHeight = image.naturalHeight || height;
+    const scale = Math.max(width / sourceWidth, height / sourceHeight);
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
+    const drawX = x + (width - drawWidth) / 2;
+    const drawY = y + (height - drawHeight) / 2;
+
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
     ctx.restore();
   }
 
@@ -687,23 +745,50 @@ export default function App() {
       return null;
     }
 
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, "#0a0c11");
-    gradient.addColorStop(0.44, "#15131d");
-    gradient.addColorStop(1, "#221617");
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = "#0b0e18";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const auroraBands = [
+      { color: "rgba(32, 214, 196, 0.28)", x: -120, y: -140, width: 240, height: 2320, angle: -0.18 },
+      { color: "rgba(62, 87, 255, 0.22)", x: 90, y: -160, width: 220, height: 2360, angle: 0.14 },
+      { color: "rgba(170, 39, 112, 0.18)", x: 300, y: -180, width: 210, height: 2340, angle: -0.12 },
+      { color: "rgba(35, 186, 164, 0.22)", x: 520, y: -150, width: 260, height: 2380, angle: 0.16 },
+      { color: "rgba(78, 44, 190, 0.18)", x: 760, y: -170, width: 230, height: 2380, angle: -0.14 },
+      { color: "rgba(142, 24, 86, 0.16)", x: 930, y: -140, width: 210, height: 2320, angle: 0.12 }
+    ];
+
+    auroraBands.forEach((band) => {
+      ctx.save();
+      ctx.translate(band.x, band.y);
+      ctx.rotate(band.angle);
+      const bandGradient = ctx.createLinearGradient(0, 0, band.width, 0);
+      bandGradient.addColorStop(0, "rgba(255,255,255,0)");
+      bandGradient.addColorStop(0.5, band.color);
+      bandGradient.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = bandGradient;
+      ctx.fillRect(0, 0, band.width, band.height);
+      ctx.restore();
+    });
+
+    ctx.fillStyle = "rgba(255,255,255,0.025)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    ctx.globalAlpha = 0.22;
-    ctx.strokeStyle = "rgba(255,255,255,0.14)";
-    for (let x = 0; x < canvas.width; x += 96) {
+    ctx.filter = "blur(22px)";
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    ctx.fillRect(120, 36, 820, 110);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.strokeStyle = "rgba(255,255,255,0.24)";
+    for (let x = 0; x < canvas.width; x += 108) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvas.height);
       ctx.stroke();
     }
-    for (let y = 0; y < canvas.height; y += 96) {
+    for (let y = 0; y < canvas.height; y += 108) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(canvas.width, y);
@@ -711,19 +796,20 @@ export default function App() {
     }
     ctx.restore();
 
-    const glow = ctx.createRadialGradient(190, 250, 40, 190, 250, 330);
-    glow.addColorStop(0, "rgba(212,168,83,0.28)");
-    glow.addColorStop(1, "rgba(212,168,83,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const floatingShapes = [
+      { text: "♪", x: 106, y: 190, size: 92, color: "rgba(75, 113, 255, 0.14)" },
+      { text: "♬", x: 902, y: 212, size: 76, color: "rgba(58, 198, 184, 0.16)" },
+      { text: "♫", x: 874, y: 1570, size: 108, color: "rgba(223, 104, 153, 0.14)" },
+      { text: "♩", x: 120, y: 1708, size: 82, color: "rgba(104, 89, 239, 0.12)" }
+    ];
 
-    const sideGlow = ctx.createRadialGradient(860, 1460, 60, 860, 1460, 360);
-    sideGlow.addColorStop(0, "rgba(196,107,123,0.22)");
-    sideGlow.addColorStop(1, "rgba(196,107,123,0)");
-    ctx.fillStyle = sideGlow;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    floatingShapes.forEach((shape) => {
+      ctx.fillStyle = shape.color;
+      ctx.font = `700 ${shape.size}px Instrument Sans, Arial`;
+      ctx.fillText(shape.text, shape.x, shape.y);
+    });
 
-    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.fillStyle = "rgba(232,236,248,0.82)";
     ctx.font = "600 26px Instrument Sans, Arial";
     ctx.fillText("AURALIZE", 86, 112);
 
@@ -732,18 +818,14 @@ export default function App() {
     ctx.fillText("Music", 82, 214);
     ctx.fillText("Passport", 82, 312);
 
-    ctx.fillStyle = "rgba(255,255,255,0.72)";
-    ctx.font = "500 32px Instrument Sans, Arial";
-    ctx.fillText("Made for Instagram stories", 86, 372);
-
     const storyPanelX = 60;
-    const storyPanelY = 430;
+    const storyPanelY = 400;
     const storyPanelWidth = 960;
-    const storyPanelHeight = 1290;
+    const storyPanelHeight = 1320;
 
     ctx.save();
-    ctx.fillStyle = "rgba(255,255,255,0.035)";
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.fillStyle = "rgba(23, 24, 34, 0.6)";
+    ctx.strokeStyle = "rgba(255,255,255,0.16)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.roundRect(storyPanelX, storyPanelY, storyPanelWidth, storyPanelHeight, 44);
@@ -753,27 +835,27 @@ export default function App() {
 
     const topArtistImage = await loadCanvasImage(activePassport.topArtist.thumbnail);
     if (topArtistImage) {
-      drawRoundedImage(ctx, topArtistImage, 92, 474, 156, 156, 34);
+      drawRoundedImageCover(ctx, topArtistImage, 92, 438, 128, 128, 30);
     } else {
       ctx.fillStyle = "rgba(255,255,255,0.08)";
       ctx.beginPath();
-      ctx.roundRect(92, 474, 156, 156, 34);
+      ctx.roundRect(92, 438, 128, 128, 30);
       ctx.fill();
     }
 
     ctx.fillStyle = "rgba(255,255,255,0.58)";
-    ctx.font = "600 22px Instrument Sans, Arial";
-    ctx.fillText("#1 ARTIST", 278, 516);
+    ctx.font = "600 20px Instrument Sans, Arial";
+    ctx.fillText("#1 ARTIST", 252, 478);
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "800 56px Space Grotesk, Arial";
-    ctx.fillText(activePassport.topArtist.name, 278, 584, 700);
+    ctx.font = "800 48px Space Grotesk, Arial";
+    ctx.fillText(activePassport.topArtist.name, 252, 534, 720);
 
     ctx.fillStyle = "rgba(255,255,255,0.68)";
-    ctx.font = "500 28px Instrument Sans, Arial";
-    ctx.fillText("leads this snapshot", 278, 628);
+    ctx.font = "500 24px Instrument Sans, Arial";
+    ctx.fillText("leads this snapshot", 252, 572);
 
-    const statCardY = 684;
+    const statCardY = 612;
     const statCardWidth = 286;
     const statGap = 24;
     const statCards = [
@@ -784,82 +866,72 @@ export default function App() {
 
     statCards.forEach((card, index) => {
       const x = 92 + index * (statCardWidth + statGap);
-      ctx.fillStyle = "rgba(255,255,255,0.04)";
+      ctx.fillStyle = "rgba(255,255,255,0.09)";
       ctx.beginPath();
-      ctx.roundRect(x, statCardY, statCardWidth, 146, 32);
+      ctx.roundRect(x, statCardY, statCardWidth, 116, 28);
       ctx.fill();
 
       ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.font = "600 20px Instrument Sans, Arial";
-      ctx.fillText(card.label.toUpperCase(), x + 28, statCardY + 42);
+      ctx.font = "600 18px Instrument Sans, Arial";
+      ctx.fillText(card.label.toUpperCase(), x + 22, statCardY + 34);
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "800 40px Space Grotesk, Arial";
-      ctx.fillText(card.value, x + 28, statCardY + 98, statCardWidth - 56);
+      ctx.font = "800 34px Space Grotesk, Arial";
+      ctx.fillText(card.value, x + 22, statCardY + 78, statCardWidth - 44);
     });
 
     ctx.fillStyle = "rgba(255,255,255,0.58)";
-    ctx.font = "600 24px Instrument Sans, Arial";
-    ctx.fillText("Top songs in this frame", 92, 894);
+    ctx.font = "600 22px Instrument Sans, Arial";
+    ctx.fillText("Top 10 songs in this frame", 92, 772);
 
-    const songs = activePassport.topSongs.slice(0, 4);
+    const songs = activePassport.topSongs.slice(0, 10);
     const songThumbs = await Promise.all(songs.map((song) => loadCanvasImage(song.thumbnail)));
 
     songs.forEach((song, index) => {
-      const y = 928 + index * 144;
-
-      ctx.fillStyle = "rgba(255,255,255,0.04)";
-      ctx.beginPath();
-      ctx.roundRect(92, y, 896, 126, 30);
-      ctx.fill();
+      const y = 800 + index * 66;
 
       ctx.fillStyle = "rgba(212,168,83,0.18)";
       ctx.beginPath();
-      ctx.roundRect(116, y + 31, 64, 64, 24);
+      ctx.roundRect(112, y + 8, 40, 40, 14);
       ctx.fill();
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "700 30px Space Grotesk, Arial";
-      ctx.fillText(String(index + 1), 138, y + 74);
+      ctx.font = "700 22px Space Grotesk, Arial";
+      ctx.fillText(String(index + 1), 124, y + 33);
 
       const thumb = songThumbs[index];
       if (thumb) {
-        drawRoundedImage(ctx, thumb, 206, y + 19, 88, 88, 24);
+        drawRoundedImageCover(ctx, thumb, 174, y + 6, 44, 44, 14);
       } else {
         ctx.fillStyle = "rgba(255,255,255,0.08)";
         ctx.beginPath();
-        ctx.roundRect(206, y + 19, 88, 88, 24);
+        ctx.roundRect(174, y + 6, 44, 44, 14);
         ctx.fill();
       }
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "700 28px Space Grotesk, Arial";
-      ctx.fillText(song.title, 322, y + 58, 620);
+      ctx.font = "700 20px Space Grotesk, Arial";
+      ctx.fillText(song.title, 242, y + 26, 700);
 
       ctx.fillStyle = "rgba(255,255,255,0.66)";
-      ctx.font = "500 24px Instrument Sans, Arial";
-      ctx.fillText(song.artist, 322, y + 94, 620);
+      ctx.font = "500 18px Instrument Sans, Arial";
+      ctx.fillText(song.artist, 242, y + 46, 700);
     });
 
-    const streakCardY = 1518;
+    const streakCardY = 1490;
 
-    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.fillStyle = "rgba(255,255,255,0.09)";
     ctx.beginPath();
-    ctx.roundRect(92, streakCardY, 896, 132, 30);
+    ctx.roundRect(92, streakCardY, 896, 110, 26);
     ctx.fill();
 
     ctx.fillStyle = "rgba(255,255,255,0.58)";
-    ctx.font = "600 22px Instrument Sans, Arial";
-    ctx.fillText("LISTENING STREAK", 126, streakCardY + 42);
+    ctx.font = "600 20px Instrument Sans, Arial";
+    ctx.fillText("LISTENING STREAK", 126, streakCardY + 34);
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "800 54px Space Grotesk, Arial";
-    ctx.fillText(`${activePassport.listeningStreakDays} days`, 126, streakCardY + 94);
-
-    ctx.fillStyle = "rgba(255,255,255,0.68)";
-    ctx.font = "500 26px Instrument Sans, Arial";
-    ctx.fillText("Share-ready for stories or posts", 86, 1846);
-
+    ctx.font = "800 44px Space Grotesk, Arial";
+    ctx.fillText(`${activePassport.listeningStreakDays} days`, 126, streakCardY + 82);
     return canvas;
   }
 
@@ -978,6 +1050,22 @@ export default function App() {
     }
   }
 
+  function applyDashboardUploadResponse(payload: DashboardUploadResponse) {
+    setParsedHistory(payload.entries);
+    setUploadQuality(payload.quality);
+    setDashboard(payload.dashboard);
+    setIsRecapOpen(false);
+    setTimeframe("all");
+  }
+
+  function applyDashboardResponse(payload: DashboardResponse) {
+    setDashboard(payload);
+    setParsedHistory([]);
+    setUploadQuality(null);
+    setIsRecapOpen(false);
+    setTimeframe("all");
+  }
+
   async function handleTakeoutSubmit() {
     if (!file && !youtubeMusicProfileUrl.trim()) {
       setError("Choose a watch-history.json file or paste a YouTube Music profile link first.");
@@ -991,14 +1079,19 @@ export default function App() {
         return;
       }
 
+      const cacheKey = buildJsonAnalysisCacheKey("youtube-profile", normalizedProfileUrl);
+      const cachedPayload = getCachedAnalysis<DashboardResponse>(cacheKey);
+      if (cachedPayload) {
+        applyDashboardResponse(cachedPayload);
+        setActionMessage("Loaded cached public profile preview.");
+        return;
+      }
+
       const payload = await postJson<DashboardResponse>("/youtube-profile", {
         url: normalizedProfileUrl
       });
-      setDashboard(payload);
-      setParsedHistory([]);
-      setUploadQuality(null);
-      setIsRecapOpen(false);
-      setTimeframe("all");
+      setCachedAnalysis(cacheKey, "youtube-profile-request", payload);
+      applyDashboardResponse(payload);
       return;
     }
 
@@ -1008,12 +1101,17 @@ export default function App() {
       return;
     }
 
+    const cacheKey = buildFileAnalysisCacheKey("takeout", selectedFile);
+    const cachedPayload = getCachedAnalysis<DashboardUploadResponse>(cacheKey);
+    if (cachedPayload) {
+      applyDashboardUploadResponse(cachedPayload);
+      setActionMessage("Loaded cached dashboard for this file.");
+      return;
+    }
+
     const analysisPayload = await postFile<DashboardUploadResponse>("/analyze", selectedFile);
-    setParsedHistory(analysisPayload.entries);
-    setUploadQuality(analysisPayload.quality);
-    setDashboard(analysisPayload.dashboard);
-    setIsRecapOpen(false);
-    setTimeframe("all");
+    setCachedAnalysis(cacheKey, "takeout", analysisPayload);
+    applyDashboardUploadResponse(analysisPayload);
   }
 
   async function handleUnifiedTakeoutSubmit() {
@@ -1023,12 +1121,17 @@ export default function App() {
     }
 
     const selectedFile = file;
+    const cacheKey = buildFileAnalysisCacheKey("unified-takeout", selectedFile);
+    const cachedPayload = getCachedAnalysis<DashboardUploadResponse>(cacheKey);
+    if (cachedPayload) {
+      applyDashboardUploadResponse(cachedPayload);
+      setActionMessage("Loaded cached unified dashboard for this file.");
+      return;
+    }
+
     const analysisPayload = await postFile<DashboardUploadResponse>("/analyze-unified", selectedFile);
-    setParsedHistory(analysisPayload.entries);
-    setUploadQuality(analysisPayload.quality);
-    setDashboard(analysisPayload.dashboard);
-    setIsRecapOpen(false);
-    setTimeframe("all");
+    setCachedAnalysis(cacheKey, "unified-takeout", analysisPayload);
+    applyDashboardUploadResponse(analysisPayload);
   }
 
   async function handleLastFmSubmit() {
@@ -1038,12 +1141,17 @@ export default function App() {
       return;
     }
 
+    const cacheKey = buildJsonAnalysisCacheKey("lastfm", username);
+    const cachedPayload = getCachedAnalysis<DashboardResponse>(cacheKey);
+    if (cachedPayload) {
+      applyDashboardResponse(cachedPayload);
+      setActionMessage("Loaded cached Last.fm snapshot.");
+      return;
+    }
+
     const payload = await postJson<DashboardResponse>("/lastfm", { username });
-    setDashboard(payload);
-    setParsedHistory([]);
-    setUploadQuality(null);
-    setIsRecapOpen(false);
-    setTimeframe("all");
+    setCachedAnalysis(cacheKey, "lastfm", payload);
+    applyDashboardResponse(payload);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1237,7 +1345,9 @@ export default function App() {
                 ref={passportRef}
                 className="mx-auto w-fit rounded-[2.5rem] bg-[#09131d] p-5"
               >
-                <MusicPassportCard data={sharedPassport} />
+                <Suspense fallback={<ChartSkeleton heightClass="h-[520px]" />}>
+                  <MusicPassportCard data={sharedPassport} />
+                </Suspense>
               </div>
             </div>
           </Section>
@@ -2089,7 +2199,9 @@ export default function App() {
                   ref={passportRef}
                   className="w-fit bg-[#06070b]"
                 >
-                  <MusicPassportCard data={passportData} />
+                  <Suspense fallback={<ChartSkeleton heightClass="h-[520px]" />}>
+                    <MusicPassportCard data={passportData} />
+                  </Suspense>
                 </div>
                 </div>
 
