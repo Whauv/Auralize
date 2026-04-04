@@ -145,9 +145,7 @@ def enrich_with_youtube_api(video_ids: list[str]) -> dict[str, dict[str, Any]]:
     unique_ids = list(dict.fromkeys(video_ids))
     cached_records = load_cache()
     enriched_records: dict[str, dict[str, Any]] = {
-        video_id: cached_records[video_id]
-        for video_id in unique_ids
-        if video_id in cached_records
+        video_id: cached_records[video_id] for video_id in unique_ids if video_id in cached_records
     }
     uncached_ids = [video_id for video_id in unique_ids if video_id not in enriched_records]
 
@@ -182,16 +180,9 @@ def is_music_video(enriched_record: dict[str, Any]) -> bool:
     tags = [str(tag).lower() for tag in enriched_record.get("tags") or []]
 
     positive_title = any(keyword in title for keyword in MUSIC_TITLE_KEYWORDS)
-    positive_tags = any(
-        keyword in tag
-        for tag in tags
-        for keyword in MUSIC_TAG_KEYWORDS
-    )
+    positive_tags = any(keyword in tag for tag in tags for keyword in MUSIC_TAG_KEYWORDS)
     positive_artist = (
-        artist.endswith("- topic")
-        or "vevo" in artist
-        or "records" in artist
-        or "music" in artist
+        artist.endswith("- topic") or "vevo" in artist or "records" in artist or "music" in artist
     )
     negative_signal = any(keyword in title for keyword in NON_MUSIC_KEYWORDS)
 

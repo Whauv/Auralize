@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import requests
@@ -77,9 +77,8 @@ def build_lastfm_dashboard(username: str) -> dict[str, Any]:
         date_info = track.get("date") or {}
         unix_timestamp = str(date_info.get("uts") or "").strip()
         if unix_timestamp:
-            recent_timestamps[track_id].append(
-                datetime.fromtimestamp(int(unix_timestamp), tz=timezone.utc).isoformat().replace("+00:00", "Z")
-            )
+            timestamp = datetime.fromtimestamp(int(unix_timestamp), tz=UTC)
+            recent_timestamps[track_id].append(timestamp.isoformat().replace("+00:00", "Z"))
         recent_images[track_id] = pick_lastfm_image(track.get("image") or [])
 
     enriched_history: list[dict[str, Any]] = []
@@ -96,12 +95,13 @@ def build_lastfm_dashboard(username: str) -> dict[str, Any]:
 
         track_id = slugify_lastfm_track_id(artist, title)
         seen_ids.add(track_id)
+        thumbnail = pick_lastfm_image(track.get("image") or []) or recent_images.get(track_id)
         enriched_history.append(
             {
                 "videoId": track_id,
                 "title": title,
                 "artist": artist,
-                "thumbnail": pick_lastfm_image(track.get("image") or []) or recent_images.get(track_id),
+                "thumbnail": thumbnail,
                 "duration": "PT0S",
                 "tags": [],
                 "playCount": int(track.get("playcount") or 0),
@@ -127,7 +127,11 @@ def build_lastfm_dashboard(username: str) -> dict[str, Any]:
         )
 
     enriched_history.sort(
-        key=lambda item: (-int(item["playCount"]), str(item["artist"]).lower(), str(item["title"]).lower())
+        key=lambda item: (
+            -int(item["playCount"]),
+            str(item["artist"]).lower(),
+            str(item["title"]).lower(),
+        )
     )
 
     normalized_top_artists = [
