@@ -167,7 +167,7 @@ export function createFormData(file: File): FormData {
 }
 
 export function buildFileAnalysisCacheKey(
-  source: "takeout" | "unified-takeout",
+  source: "takeout" | "unified-takeout" | "apple-music",
   file: File
 ): string {
   return `${source}:${file.name}:${file.size}:${file.lastModified}`;

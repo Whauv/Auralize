@@ -35,7 +35,7 @@ export type MoodTimelineEntry = {
 };
 
 export type DashboardResponse = {
-  source: "takeout" | "unified-takeout" | "lastfm" | "youtube-profile";
+  source: "takeout" | "unified-takeout" | "apple-music" | "lastfm" | "youtube-profile";
   username: string | null;
   stats: StatsPayload;
   genreBreakdown: GenreBreakdownEntry[];
