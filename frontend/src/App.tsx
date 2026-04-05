@@ -12,7 +12,7 @@ import {
 } from "react";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import html2canvas from "html2canvas";
-import type { MusicPassportData } from "./components/MusicPassportCard";
+import type { MusicPassportData, MusicPassportTheme } from "./components/MusicPassportCard";
 import {
   ChartSkeleton,
   LoadingSpinner,
@@ -75,8 +75,19 @@ import {
   buildSavedSession
 } from "./lib/utils";
 
-type SourceMode = "takeout" | "unified-takeout" | "lastfm";
+type SourceMode = "takeout" | "unified-takeout" | "apple-music" | "lastfm";
 type DashboardDensity = "simple" | "full";
+type ExportThemeId =
+  | "aurora-noir"
+  | "anime-pop"
+  | "retro-sunset"
+  | "cyber-mint"
+  | "sakura-night"
+  | "velvet-gold"
+  | "ocean-dream"
+  | "mono-luxe"
+  | "arcade-pulse"
+  | "ember-dusk";
 const RecapView = lazy(() =>
   import("./components/RecapView").then((module) => ({ default: module.RecapView }))
 );
@@ -170,6 +181,490 @@ const DASHBOARD_THEME_PACKS: Record<
 };
 const PREFERENCES_STORAGE_KEY = "auralize-dashboard-preferences";
 const SAVED_SESSIONS_STORAGE_KEY = "auralize-saved-sessions";
+
+type ExportThemeDefinition = {
+  label: string;
+  storyBackground: string;
+  storyPanelFill: string;
+  storyPanelBorder: string;
+  noteColor: string;
+  labelColor: string;
+  titleColor: string;
+  subtitleColor: string;
+  accentColor: string;
+  accentSoft: string;
+  rankBackground: string;
+  dividerColor: string;
+  auroraBands: string[];
+  displayFont: string;
+  bodyFont: string;
+  displayFontLoad: string;
+  bodyFontLoad: string;
+  passportTheme: MusicPassportTheme;
+};
+
+const EXPORT_THEME_OPTIONS: Record<ExportThemeId, ExportThemeDefinition> = {
+  "aurora-noir": {
+    label: "Aurora Noir",
+    storyBackground: "#090d17",
+    storyPanelFill: "rgba(34,36,48,0.58)",
+    storyPanelBorder: "rgba(255,255,255,0.16)",
+    noteColor: "rgba(110,133,255,0.16)",
+    labelColor: "rgba(232,236,248,0.82)",
+    titleColor: "#ffffff",
+    subtitleColor: "rgba(255,255,255,0.68)",
+    accentColor: "#d9b56a",
+    accentSoft: "rgba(217,181,106,0.18)",
+    rankBackground: "rgba(212,168,83,0.18)",
+    dividerColor: "rgba(255,255,255,0.12)",
+    auroraBands: [
+      "rgba(32,214,196,0.28)",
+      "rgba(62,87,255,0.22)",
+      "rgba(170,39,112,0.18)",
+      "rgba(35,186,164,0.22)",
+      "rgba(78,44,190,0.18)",
+      "rgba(142,24,86,0.16)"
+    ],
+    displayFont: "\"Archivo Black\", Arial",
+    bodyFont: "\"Instrument Sans\", Arial",
+    displayFontLoad: "900 94px Archivo Black",
+    bodyFontLoad: "600 24px Instrument Sans",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#090c13 0%,#0f121d 32%,#19131b 68%,#24181a 100%)",
+      shellOverlay:
+        "radial-gradient(circle at top left,rgba(212,168,83,0.16),transparent 28%),radial-gradient(circle at 85% 14%,rgba(255,255,255,0.05),transparent 20%),radial-gradient(circle at bottom right,rgba(196,107,123,0.12),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.04)",
+      border: "rgba(255,255,255,0.12)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.18))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.04),rgba(0,0,0,0.2))",
+      chipBg: "rgba(255,255,255,0.08)",
+      chipText: "#ffffff",
+      accentChipBg: "rgba(252,211,77,0.12)",
+      accentChipText: "#fff7ed",
+      title: "#ffffff",
+      subtext: "rgba(255,255,255,0.62)",
+      fingerprintTrack: "rgba(255,255,255,0.1)",
+      fingerprintGradient: "linear-gradient(90deg,#d4a853 0%,#d9b56a 55%,#c46b7b 100%)",
+      displayFont: "\"Archivo Black\", \"Space Grotesk\", sans-serif",
+      bodyFont: "\"Instrument Sans\", \"Space Grotesk\", sans-serif"
+    }
+  },
+  "anime-pop": {
+    label: "Anime Pop",
+    storyBackground: "#11111d",
+    storyPanelFill: "rgba(39,28,53,0.55)",
+    storyPanelBorder: "rgba(255,215,238,0.16)",
+    noteColor: "rgba(255,117,196,0.18)",
+    labelColor: "rgba(255,220,240,0.82)",
+    titleColor: "#fff8fc",
+    subtitleColor: "rgba(255,232,243,0.72)",
+    accentColor: "#ff8cc6",
+    accentSoft: "rgba(255,140,198,0.18)",
+    rankBackground: "rgba(255,140,198,0.2)",
+    dividerColor: "rgba(255,200,226,0.12)",
+    auroraBands: [
+      "rgba(255,120,198,0.28)",
+      "rgba(255,196,92,0.16)",
+      "rgba(148,111,255,0.22)",
+      "rgba(110,227,255,0.18)",
+      "rgba(255,84,157,0.16)",
+      "rgba(242,163,74,0.14)"
+    ],
+    displayFont: "\"Bricolage Grotesque\", Arial",
+    bodyFont: "\"Manrope\", Arial",
+    displayFontLoad: "800 94px Bricolage Grotesque",
+    bodyFontLoad: "600 24px Manrope",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(150deg,#140f1f 0%,#2b1438 38%,#4a1e41 72%,#2d1b33 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(255,140,198,0.2),transparent 26%),radial-gradient(circle at 84% 22%,rgba(110,227,255,0.14),transparent 22%),radial-gradient(circle at 72% 86%,rgba(255,196,92,0.14),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.05)",
+      border: "rgba(255,214,236,0.16)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.08),rgba(27,17,40,0.42))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.1),rgba(35,18,52,0.5))",
+      chipBg: "rgba(255,255,255,0.1)",
+      chipText: "#fff8fc",
+      accentChipBg: "rgba(255,140,198,0.22)",
+      accentChipText: "#fff5fb",
+      title: "#fff8fc",
+      subtext: "rgba(255,232,243,0.72)",
+      fingerprintTrack: "rgba(255,255,255,0.12)",
+      fingerprintGradient: "linear-gradient(90deg,#ff8cc6 0%,#ffd36e 55%,#6ee3ff 100%)",
+      displayFont: "\"Bricolage Grotesque\", \"Space Grotesk\", sans-serif",
+      bodyFont: "\"Manrope\", \"Instrument Sans\", sans-serif"
+    }
+  },
+  "retro-sunset": {
+    label: "Retro Sunset",
+    storyBackground: "#161118",
+    storyPanelFill: "rgba(43,31,34,0.56)",
+    storyPanelBorder: "rgba(255,210,166,0.16)",
+    noteColor: "rgba(255,167,87,0.18)",
+    labelColor: "rgba(255,229,199,0.82)",
+    titleColor: "#fff8ef",
+    subtitleColor: "rgba(255,232,213,0.72)",
+    accentColor: "#ffb562",
+    accentSoft: "rgba(255,181,98,0.18)",
+    rankBackground: "rgba(255,181,98,0.2)",
+    dividerColor: "rgba(255,216,182,0.12)",
+    auroraBands: [
+      "rgba(255,171,77,0.24)",
+      "rgba(255,99,132,0.18)",
+      "rgba(125,90,255,0.15)",
+      "rgba(255,211,128,0.14)",
+      "rgba(214,90,130,0.16)",
+      "rgba(255,129,95,0.15)"
+    ],
+    displayFont: "\"Bebas Neue\", Arial",
+    bodyFont: "\"Instrument Sans\", Arial",
+    displayFontLoad: "400 94px Bebas Neue",
+    bodyFontLoad: "600 24px Instrument Sans",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#171117 0%,#2c171b 34%,#4b2228 66%,#2b1515 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(255,181,98,0.18),transparent 26%),radial-gradient(circle at 84% 18%,rgba(255,114,143,0.14),transparent 22%),radial-gradient(circle at 66% 80%,rgba(124,88,255,0.12),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.04)",
+      border: "rgba(255,218,189,0.14)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.05),rgba(44,23,27,0.44))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(63,29,30,0.5))",
+      chipBg: "rgba(255,255,255,0.08)",
+      chipText: "#fff8ef",
+      accentChipBg: "rgba(255,181,98,0.2)",
+      accentChipText: "#fff7ed",
+      title: "#fff8ef",
+      subtext: "rgba(255,232,213,0.7)",
+      fingerprintTrack: "rgba(255,255,255,0.1)",
+      fingerprintGradient: "linear-gradient(90deg,#ffb562 0%,#ff7c87 52%,#8a74ff 100%)",
+      displayFont: "\"Bebas Neue\", \"Archivo Black\", sans-serif",
+      bodyFont: "\"Instrument Sans\", sans-serif"
+    }
+  },
+  "cyber-mint": {
+    label: "Cyber Mint",
+    storyBackground: "#081117",
+    storyPanelFill: "rgba(18,34,39,0.56)",
+    storyPanelBorder: "rgba(136,255,220,0.16)",
+    noteColor: "rgba(95,255,228,0.18)",
+    labelColor: "rgba(207,255,245,0.84)",
+    titleColor: "#ecfffb",
+    subtitleColor: "rgba(206,255,245,0.72)",
+    accentColor: "#61f0d0",
+    accentSoft: "rgba(97,240,208,0.18)",
+    rankBackground: "rgba(97,240,208,0.2)",
+    dividerColor: "rgba(174,255,239,0.12)",
+    auroraBands: [
+      "rgba(95,255,228,0.25)",
+      "rgba(54,139,255,0.18)",
+      "rgba(0,255,163,0.14)",
+      "rgba(135,255,240,0.16)",
+      "rgba(75,196,255,0.16)",
+      "rgba(39,255,200,0.12)"
+    ],
+    displayFont: "\"Orbitron\", Arial",
+    bodyFont: "\"Manrope\", Arial",
+    displayFontLoad: "800 80px Orbitron",
+    bodyFontLoad: "600 24px Manrope",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#071017 0%,#092027 36%,#12333a 68%,#07181d 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(95,255,228,0.16),transparent 26%),radial-gradient(circle at 82% 18%,rgba(84,161,255,0.13),transparent 22%),radial-gradient(circle at 70% 82%,rgba(0,255,163,0.1),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.03)",
+      border: "rgba(136,255,220,0.15)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.04),rgba(8,24,28,0.46))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(12,34,39,0.54))",
+      chipBg: "rgba(255,255,255,0.07)",
+      chipText: "#ecfffb",
+      accentChipBg: "rgba(97,240,208,0.18)",
+      accentChipText: "#ecfffb",
+      title: "#ecfffb",
+      subtext: "rgba(206,255,245,0.68)",
+      fingerprintTrack: "rgba(255,255,255,0.08)",
+      fingerprintGradient: "linear-gradient(90deg,#61f0d0 0%,#65caff 50%,#8dffcb 100%)",
+      displayFont: "\"Orbitron\", \"Space Grotesk\", sans-serif",
+      bodyFont: "\"Manrope\", \"Instrument Sans\", sans-serif"
+    }
+  },
+  "sakura-night": {
+    label: "Sakura Night",
+    storyBackground: "#14101a",
+    storyPanelFill: "rgba(39,29,40,0.58)",
+    storyPanelBorder: "rgba(255,206,220,0.15)",
+    noteColor: "rgba(255,164,192,0.18)",
+    labelColor: "rgba(255,229,239,0.82)",
+    titleColor: "#fff8fb",
+    subtitleColor: "rgba(255,228,239,0.72)",
+    accentColor: "#f4a6c1",
+    accentSoft: "rgba(244,166,193,0.18)",
+    rankBackground: "rgba(244,166,193,0.2)",
+    dividerColor: "rgba(255,210,228,0.12)",
+    auroraBands: [
+      "rgba(244,166,193,0.24)",
+      "rgba(163,124,255,0.18)",
+      "rgba(255,204,224,0.14)",
+      "rgba(123,111,247,0.14)",
+      "rgba(255,146,193,0.14)",
+      "rgba(220,190,255,0.12)"
+    ],
+    displayFont: "\"Cormorant Garamond\", serif",
+    bodyFont: "\"Instrument Sans\", Arial",
+    displayFontLoad: "700 96px Cormorant Garamond",
+    bodyFontLoad: "600 24px Instrument Sans",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#120f17 0%,#221828 34%,#3a2538 68%,#1f1824 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(244,166,193,0.16),transparent 26%),radial-gradient(circle at 82% 20%,rgba(164,127,255,0.13),transparent 22%),radial-gradient(circle at 66% 82%,rgba(255,220,234,0.12),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.04)",
+      border: "rgba(255,220,234,0.14)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.05),rgba(31,24,36,0.46))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(48,31,49,0.54))",
+      chipBg: "rgba(255,255,255,0.08)",
+      chipText: "#fff8fb",
+      accentChipBg: "rgba(244,166,193,0.18)",
+      accentChipText: "#fff8fb",
+      title: "#fff8fb",
+      subtext: "rgba(255,228,239,0.7)",
+      fingerprintTrack: "rgba(255,255,255,0.08)",
+      fingerprintGradient: "linear-gradient(90deg,#f4a6c1 0%,#d6bbff 52%,#ffd0dd 100%)",
+      displayFont: "\"Cormorant Garamond\", serif",
+      bodyFont: "\"Instrument Sans\", sans-serif"
+    }
+  },
+  "velvet-gold": {
+    label: "Velvet Gold",
+    storyBackground: "#14100c",
+    storyPanelFill: "rgba(42,31,24,0.56)",
+    storyPanelBorder: "rgba(235,201,137,0.16)",
+    noteColor: "rgba(235,201,137,0.18)",
+    labelColor: "rgba(245,228,193,0.82)",
+    titleColor: "#fff8ec",
+    subtitleColor: "rgba(245,228,193,0.72)",
+    accentColor: "#e6bf73",
+    accentSoft: "rgba(230,191,115,0.18)",
+    rankBackground: "rgba(230,191,115,0.2)",
+    dividerColor: "rgba(245,228,193,0.12)",
+    auroraBands: [
+      "rgba(230,191,115,0.22)",
+      "rgba(153,75,43,0.16)",
+      "rgba(255,230,170,0.14)",
+      "rgba(164,96,61,0.16)",
+      "rgba(221,184,120,0.14)",
+      "rgba(111,71,38,0.12)"
+    ],
+    displayFont: "\"Bebas Neue\", Arial",
+    bodyFont: "\"Manrope\", Arial",
+    displayFontLoad: "400 94px Bebas Neue",
+    bodyFontLoad: "600 24px Manrope",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#120e0b 0%,#241912 34%,#3a261a 68%,#1a1310 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(230,191,115,0.18),transparent 26%),radial-gradient(circle at 82% 18%,rgba(169,105,63,0.12),transparent 22%),radial-gradient(circle at 66% 82%,rgba(255,240,202,0.1),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.03)",
+      border: "rgba(245,228,193,0.14)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.04),rgba(29,21,16,0.46))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(42,31,24,0.56))",
+      chipBg: "rgba(255,255,255,0.07)",
+      chipText: "#fff8ec",
+      accentChipBg: "rgba(230,191,115,0.18)",
+      accentChipText: "#fff8ec",
+      title: "#fff8ec",
+      subtext: "rgba(245,228,193,0.68)",
+      fingerprintTrack: "rgba(255,255,255,0.08)",
+      fingerprintGradient: "linear-gradient(90deg,#e6bf73 0%,#f2df9e 52%,#d58656 100%)",
+      displayFont: "\"Bebas Neue\", \"Archivo Black\", sans-serif",
+      bodyFont: "\"Manrope\", \"Instrument Sans\", sans-serif"
+    }
+  },
+  "ocean-dream": {
+    label: "Ocean Dream",
+    storyBackground: "#0b1220",
+    storyPanelFill: "rgba(26,37,58,0.56)",
+    storyPanelBorder: "rgba(162,223,255,0.16)",
+    noteColor: "rgba(117,214,255,0.18)",
+    labelColor: "rgba(220,244,255,0.82)",
+    titleColor: "#f3fbff",
+    subtitleColor: "rgba(220,244,255,0.72)",
+    accentColor: "#7dd8ff",
+    accentSoft: "rgba(125,216,255,0.18)",
+    rankBackground: "rgba(125,216,255,0.2)",
+    dividerColor: "rgba(220,244,255,0.12)",
+    auroraBands: [
+      "rgba(117,214,255,0.24)",
+      "rgba(62,122,255,0.18)",
+      "rgba(71,255,230,0.14)",
+      "rgba(141,191,255,0.16)",
+      "rgba(44,171,255,0.14)",
+      "rgba(85,255,214,0.12)"
+    ],
+    displayFont: "\"Space Grotesk\", Arial",
+    bodyFont: "\"Manrope\", Arial",
+    displayFontLoad: "700 88px Space Grotesk",
+    bodyFontLoad: "600 24px Manrope",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#09111c 0%,#102034 34%,#17314f 68%,#0b1827 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(117,214,255,0.16),transparent 26%),radial-gradient(circle at 82% 18%,rgba(80,138,255,0.13),transparent 22%),radial-gradient(circle at 66% 82%,rgba(71,255,230,0.1),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.03)",
+      border: "rgba(220,244,255,0.14)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.04),rgba(10,24,39,0.46))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(17,38,64,0.54))",
+      chipBg: "rgba(255,255,255,0.07)",
+      chipText: "#f3fbff",
+      accentChipBg: "rgba(125,216,255,0.16)",
+      accentChipText: "#f3fbff",
+      title: "#f3fbff",
+      subtext: "rgba(220,244,255,0.68)",
+      fingerprintTrack: "rgba(255,255,255,0.08)",
+      fingerprintGradient: "linear-gradient(90deg,#7dd8ff 0%,#72b1ff 52%,#71ffe6 100%)",
+      displayFont: "\"Space Grotesk\", sans-serif",
+      bodyFont: "\"Manrope\", sans-serif"
+    }
+  },
+  "mono-luxe": {
+    label: "Mono Luxe",
+    storyBackground: "#111111",
+    storyPanelFill: "rgba(28,28,28,0.58)",
+    storyPanelBorder: "rgba(245,245,245,0.14)",
+    noteColor: "rgba(255,255,255,0.12)",
+    labelColor: "rgba(235,235,235,0.78)",
+    titleColor: "#ffffff",
+    subtitleColor: "rgba(235,235,235,0.68)",
+    accentColor: "#d4d4d4",
+    accentSoft: "rgba(212,212,212,0.18)",
+    rankBackground: "rgba(212,212,212,0.18)",
+    dividerColor: "rgba(255,255,255,0.1)",
+    auroraBands: [
+      "rgba(255,255,255,0.12)",
+      "rgba(180,180,180,0.08)",
+      "rgba(235,235,235,0.06)",
+      "rgba(130,130,130,0.08)",
+      "rgba(220,220,220,0.06)",
+      "rgba(90,90,90,0.08)"
+    ],
+    displayFont: "\"Cormorant Garamond\", serif",
+    bodyFont: "\"Manrope\", Arial",
+    displayFontLoad: "700 96px Cormorant Garamond",
+    bodyFontLoad: "600 24px Manrope",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#111111 0%,#1b1b1b 34%,#2a2a2a 68%,#171717 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(255,255,255,0.08),transparent 26%),radial-gradient(circle at 82% 18%,rgba(210,210,210,0.08),transparent 22%),radial-gradient(circle at 66% 82%,rgba(255,255,255,0.06),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.03)",
+      border: "rgba(255,255,255,0.12)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.03),rgba(12,12,12,0.42))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.05),rgba(20,20,20,0.48))",
+      chipBg: "rgba(255,255,255,0.06)",
+      chipText: "#ffffff",
+      accentChipBg: "rgba(212,212,212,0.16)",
+      accentChipText: "#ffffff",
+      title: "#ffffff",
+      subtext: "rgba(235,235,235,0.68)",
+      fingerprintTrack: "rgba(255,255,255,0.08)",
+      fingerprintGradient: "linear-gradient(90deg,#f3f3f3 0%,#bdbdbd 52%,#7f7f7f 100%)",
+      displayFont: "\"Cormorant Garamond\", serif",
+      bodyFont: "\"Manrope\", sans-serif"
+    }
+  },
+  "arcade-pulse": {
+    label: "Arcade Pulse",
+    storyBackground: "#100b19",
+    storyPanelFill: "rgba(31,21,47,0.58)",
+    storyPanelBorder: "rgba(205,118,255,0.16)",
+    noteColor: "rgba(205,118,255,0.18)",
+    labelColor: "rgba(238,214,255,0.82)",
+    titleColor: "#fff7ff",
+    subtitleColor: "rgba(238,214,255,0.72)",
+    accentColor: "#cc76ff",
+    accentSoft: "rgba(204,118,255,0.18)",
+    rankBackground: "rgba(204,118,255,0.2)",
+    dividerColor: "rgba(238,214,255,0.12)",
+    auroraBands: [
+      "rgba(204,118,255,0.24)",
+      "rgba(77,103,255,0.18)",
+      "rgba(255,78,172,0.15)",
+      "rgba(69,232,255,0.15)",
+      "rgba(160,94,255,0.14)",
+      "rgba(255,154,87,0.12)"
+    ],
+    displayFont: "\"Orbitron\", Arial",
+    bodyFont: "\"Instrument Sans\", Arial",
+    displayFontLoad: "800 80px Orbitron",
+    bodyFontLoad: "600 24px Instrument Sans",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#100b19 0%,#1a1130 34%,#2b1652 68%,#140d26 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(204,118,255,0.18),transparent 26%),radial-gradient(circle at 82% 18%,rgba(77,103,255,0.13),transparent 22%),radial-gradient(circle at 66% 82%,rgba(69,232,255,0.12),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.04)",
+      border: "rgba(238,214,255,0.14)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.04),rgba(17,11,28,0.46))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(31,21,47,0.54))",
+      chipBg: "rgba(255,255,255,0.07)",
+      chipText: "#fff7ff",
+      accentChipBg: "rgba(204,118,255,0.18)",
+      accentChipText: "#fff7ff",
+      title: "#fff7ff",
+      subtext: "rgba(238,214,255,0.68)",
+      fingerprintTrack: "rgba(255,255,255,0.08)",
+      fingerprintGradient: "linear-gradient(90deg,#cc76ff 0%,#6d8cff 52%,#48e8ff 100%)",
+      displayFont: "\"Orbitron\", sans-serif",
+      bodyFont: "\"Instrument Sans\", sans-serif"
+    }
+  },
+  "ember-dusk": {
+    label: "Ember Dusk",
+    storyBackground: "#130f14",
+    storyPanelFill: "rgba(40,27,31,0.58)",
+    storyPanelBorder: "rgba(255,151,120,0.16)",
+    noteColor: "rgba(255,151,120,0.18)",
+    labelColor: "rgba(255,225,214,0.82)",
+    titleColor: "#fff9f7",
+    subtitleColor: "rgba(255,225,214,0.72)",
+    accentColor: "#ff9778",
+    accentSoft: "rgba(255,151,120,0.18)",
+    rankBackground: "rgba(255,151,120,0.2)",
+    dividerColor: "rgba(255,225,214,0.12)",
+    auroraBands: [
+      "rgba(255,151,120,0.24)",
+      "rgba(255,98,112,0.16)",
+      "rgba(214,168,83,0.14)",
+      "rgba(255,183,122,0.14)",
+      "rgba(186,79,113,0.14)",
+      "rgba(255,123,97,0.12)"
+    ],
+    displayFont: "\"Bricolage Grotesque\", Arial",
+    bodyFont: "\"Instrument Sans\", Arial",
+    displayFontLoad: "800 94px Bricolage Grotesque",
+    bodyFontLoad: "600 24px Instrument Sans",
+    passportTheme: {
+      shellBg:
+        "linear-gradient(155deg,#120f14 0%,#251821 34%,#3f222b 68%,#1c1218 100%)",
+      shellOverlay:
+        "radial-gradient(circle at 18% 14%,rgba(255,151,120,0.18),transparent 26%),radial-gradient(circle at 82% 18%,rgba(255,98,112,0.13),transparent 22%),radial-gradient(circle at 66% 82%,rgba(214,168,83,0.12),transparent 24%)",
+      ringTint: "rgba(255,255,255,0.04)",
+      border: "rgba(255,225,214,0.14)",
+      surface: "linear-gradient(180deg,rgba(255,255,255,0.05),rgba(24,16,22,0.46))",
+      surfaceStrong: "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(40,27,31,0.54))",
+      chipBg: "rgba(255,255,255,0.07)",
+      chipText: "#fff9f7",
+      accentChipBg: "rgba(255,151,120,0.18)",
+      accentChipText: "#fff9f7",
+      title: "#fff9f7",
+      subtext: "rgba(255,225,214,0.68)",
+      fingerprintTrack: "rgba(255,255,255,0.08)",
+      fingerprintGradient: "linear-gradient(90deg,#ff9778 0%,#ff6983 52%,#d7aa63 100%)",
+      displayFont: "\"Bricolage Grotesque\", sans-serif",
+      bodyFont: "\"Instrument Sans\", sans-serif"
+    }
+  }
+};
 
 function AmbientMusicScene() {
   return (
@@ -281,6 +776,7 @@ export default function App() {
   const [recapTheme, setRecapTheme] = useState<RecapThemePack>("gold-noir");
   const [recapVariant, setRecapVariant] = useState<RecapVariant>("auto");
   const [dashboardDensity, setDashboardDensity] = useState<DashboardDensity>("simple");
+  const [exportThemeId, setExportThemeId] = useState<ExportThemeId>("aurora-noir");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("");
   const [selectedArtist, setSelectedArtist] = useState("");
@@ -333,6 +829,7 @@ export default function App() {
         recapTheme: RecapThemePack;
         recapVariant: RecapVariant;
         dashboardDensity: DashboardDensity;
+        exportThemeId: ExportThemeId;
       }>;
 
       if (saved.timeframe) {
@@ -346,6 +843,9 @@ export default function App() {
       }
       if (saved.dashboardDensity) {
         setDashboardDensity(saved.dashboardDensity);
+      }
+      if (saved.exportThemeId) {
+        setExportThemeId(saved.exportThemeId);
       }
     } catch {
       window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
@@ -371,10 +871,11 @@ export default function App() {
         timeframe,
         recapTheme,
         recapVariant,
-        dashboardDensity
+        dashboardDensity,
+        exportThemeId
       })
     );
-  }, [timeframe, recapTheme, recapVariant, dashboardDensity]);
+  }, [timeframe, recapTheme, recapVariant, dashboardDensity, exportThemeId]);
 
   useEffect(() => {
     window.localStorage.setItem(SAVED_SESSIONS_STORAGE_KEY, JSON.stringify(savedSessions));
@@ -482,6 +983,7 @@ export default function App() {
     return buildPassportData(stats, genreBreakdown, moodTimeline);
   }, [dashboard?.source, stats, genreBreakdown, moodTimeline]);
   const activePassport = sharedPassport ?? passportData ?? null;
+  const exportTheme = EXPORT_THEME_OPTIONS[exportThemeId];
   const tasteEvolution = useMemo<TasteEvolutionPoint[]>(() => {
     if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       return [];
@@ -552,6 +1054,9 @@ export default function App() {
   const sourceLabel = useMemo(() => {
     if (dashboard?.source === "lastfm") {
       return "Last.fm Live Mode";
+    }
+    if (dashboard?.source === "apple-music") {
+      return "Apple Music Export";
     }
     if (dashboard?.source === "unified-takeout") {
       return "YouTube Music + YouTube Music Plays";
@@ -655,6 +1160,20 @@ export default function App() {
     );
   }
 
+  async function ensureExportFontsLoaded(theme: ExportThemeDefinition) {
+    if (!("fonts" in document)) {
+      return;
+    }
+
+    await Promise.all([
+      document.fonts.load(theme.displayFontLoad),
+      document.fonts.load(theme.bodyFontLoad),
+      document.fonts.load("900 64px Archivo Black"),
+      document.fonts.load("700 24px Space Grotesk"),
+      document.fonts.load("600 20px Instrument Sans")
+    ]);
+  }
+
   async function renderNodeToCanvas(node: HTMLElement, backgroundColor: string | null) {
     await waitForExportAssets(node);
     const rect = node.getBoundingClientRect();
@@ -680,6 +1199,7 @@ export default function App() {
       return null;
     }
 
+    await ensureExportFontsLoaded(exportTheme);
     return renderNodeToCanvas(passportRef.current, "#06070b");
   }
 
@@ -737,6 +1257,8 @@ export default function App() {
       return null;
     }
 
+    await ensureExportFontsLoaded(exportTheme);
+
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1920;
@@ -745,16 +1267,19 @@ export default function App() {
       return null;
     }
 
-    ctx.fillStyle = "#0b0e18";
+    const displayFont = exportTheme.displayFont;
+    const bodyFont = exportTheme.bodyFont;
+
+    ctx.fillStyle = exportTheme.storyBackground;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const auroraBands = [
-      { color: "rgba(32, 214, 196, 0.28)", x: -120, y: -140, width: 240, height: 2320, angle: -0.18 },
-      { color: "rgba(62, 87, 255, 0.22)", x: 90, y: -160, width: 220, height: 2360, angle: 0.14 },
-      { color: "rgba(170, 39, 112, 0.18)", x: 300, y: -180, width: 210, height: 2340, angle: -0.12 },
-      { color: "rgba(35, 186, 164, 0.22)", x: 520, y: -150, width: 260, height: 2380, angle: 0.16 },
-      { color: "rgba(78, 44, 190, 0.18)", x: 760, y: -170, width: 230, height: 2380, angle: -0.14 },
-      { color: "rgba(142, 24, 86, 0.16)", x: 930, y: -140, width: 210, height: 2320, angle: 0.12 }
+      { color: exportTheme.auroraBands[0], x: -120, y: -140, width: 240, height: 2320, angle: -0.18 },
+      { color: exportTheme.auroraBands[1], x: 90, y: -160, width: 220, height: 2360, angle: 0.14 },
+      { color: exportTheme.auroraBands[2], x: 300, y: -180, width: 210, height: 2340, angle: -0.12 },
+      { color: exportTheme.auroraBands[3], x: 520, y: -150, width: 260, height: 2380, angle: 0.16 },
+      { color: exportTheme.auroraBands[4], x: 760, y: -170, width: 230, height: 2380, angle: -0.14 },
+      { color: exportTheme.auroraBands[5], x: 930, y: -140, width: 210, height: 2320, angle: 0.12 }
     ];
 
     auroraBands.forEach((band) => {
@@ -770,18 +1295,12 @@ export default function App() {
       ctx.restore();
     });
 
-    ctx.fillStyle = "rgba(255,255,255,0.025)";
+    ctx.fillStyle = "rgba(255,255,255,0.02)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    ctx.filter = "blur(22px)";
-    ctx.fillStyle = "rgba(255,255,255,0.1)";
-    ctx.fillRect(120, 36, 820, 110);
-    ctx.restore();
-
-    ctx.save();
     ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = "rgba(255,255,255,0.24)";
+    ctx.strokeStyle = exportTheme.dividerColor;
     for (let x = 0; x < canvas.width; x += 108) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -805,16 +1324,16 @@ export default function App() {
 
     floatingShapes.forEach((shape) => {
       ctx.fillStyle = shape.color;
-      ctx.font = `700 ${shape.size}px Instrument Sans, Arial`;
+      ctx.font = `700 ${shape.size}px ${bodyFont}`;
       ctx.fillText(shape.text, shape.x, shape.y);
     });
 
-    ctx.fillStyle = "rgba(232,236,248,0.82)";
-    ctx.font = "600 26px Instrument Sans, Arial";
+    ctx.fillStyle = exportTheme.labelColor;
+    ctx.font = `600 26px ${bodyFont}`;
     ctx.fillText("AURALIZE", 86, 112);
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 94px Archivo Black, Arial";
+    ctx.fillStyle = exportTheme.titleColor;
+    ctx.font = `900 94px ${displayFont}`;
     ctx.fillText("Music", 82, 214);
     ctx.fillText("Passport", 82, 312);
 
@@ -824,8 +1343,8 @@ export default function App() {
     const storyPanelHeight = 1320;
 
     ctx.save();
-    ctx.fillStyle = "rgba(23, 24, 34, 0.6)";
-    ctx.strokeStyle = "rgba(255,255,255,0.16)";
+    ctx.fillStyle = exportTheme.storyPanelFill;
+    ctx.strokeStyle = exportTheme.storyPanelBorder;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.roundRect(storyPanelX, storyPanelY, storyPanelWidth, storyPanelHeight, 44);
@@ -843,19 +1362,19 @@ export default function App() {
       ctx.fill();
     }
 
-    ctx.fillStyle = "rgba(255,255,255,0.58)";
-    ctx.font = "600 20px Instrument Sans, Arial";
+    ctx.fillStyle = exportTheme.labelColor;
+    ctx.font = `600 20px ${bodyFont}`;
     ctx.fillText("#1 ARTIST", 252, 478);
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 48px Space Grotesk, Arial";
+    ctx.fillStyle = exportTheme.titleColor;
+    ctx.font = `800 48px ${displayFont}`;
     ctx.fillText(activePassport.topArtist.name, 252, 534, 720);
 
-    ctx.fillStyle = "rgba(255,255,255,0.68)";
-    ctx.font = "500 24px Instrument Sans, Arial";
+    ctx.fillStyle = exportTheme.subtitleColor;
+    ctx.font = `500 24px ${bodyFont}`;
     ctx.fillText("leads this snapshot", 252, 572);
 
-    const statCardY = 612;
+    const statCardY = 618;
     const statCardWidth = 286;
     const statGap = 24;
     const statCards = [
@@ -866,22 +1385,17 @@ export default function App() {
 
     statCards.forEach((card, index) => {
       const x = 92 + index * (statCardWidth + statGap);
-      ctx.fillStyle = "rgba(255,255,255,0.09)";
-      ctx.beginPath();
-      ctx.roundRect(x, statCardY, statCardWidth, 116, 28);
-      ctx.fill();
+      ctx.fillStyle = exportTheme.labelColor;
+      ctx.font = `600 18px ${bodyFont}`;
+      ctx.fillText(card.label.toUpperCase(), x, statCardY + 20);
 
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.font = "600 18px Instrument Sans, Arial";
-      ctx.fillText(card.label.toUpperCase(), x + 22, statCardY + 34);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "800 34px Space Grotesk, Arial";
-      ctx.fillText(card.value, x + 22, statCardY + 78, statCardWidth - 44);
+      ctx.fillStyle = exportTheme.titleColor;
+      ctx.font = `800 34px ${displayFont}`;
+      ctx.fillText(card.value, x, statCardY + 66, statCardWidth - 8);
     });
 
-    ctx.fillStyle = "rgba(255,255,255,0.58)";
-    ctx.font = "600 22px Instrument Sans, Arial";
+    ctx.fillStyle = exportTheme.labelColor;
+    ctx.font = `600 22px ${bodyFont}`;
     ctx.fillText("Top 10 songs in this frame", 92, 772);
 
     const songs = activePassport.topSongs.slice(0, 10);
@@ -890,13 +1404,13 @@ export default function App() {
     songs.forEach((song, index) => {
       const y = 800 + index * 66;
 
-      ctx.fillStyle = "rgba(212,168,83,0.18)";
+      ctx.fillStyle = exportTheme.rankBackground;
       ctx.beginPath();
       ctx.roundRect(112, y + 8, 40, 40, 14);
       ctx.fill();
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "700 22px Space Grotesk, Arial";
+      ctx.fillStyle = exportTheme.titleColor;
+      ctx.font = `700 22px ${displayFont}`;
       ctx.fillText(String(index + 1), 124, y + 33);
 
       const thumb = songThumbs[index];
@@ -909,29 +1423,24 @@ export default function App() {
         ctx.fill();
       }
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "700 20px Space Grotesk, Arial";
+      ctx.fillStyle = exportTheme.titleColor;
+      ctx.font = `700 20px ${displayFont}`;
       ctx.fillText(song.title, 242, y + 26, 700);
 
-      ctx.fillStyle = "rgba(255,255,255,0.66)";
-      ctx.font = "500 18px Instrument Sans, Arial";
+      ctx.fillStyle = exportTheme.subtitleColor;
+      ctx.font = `500 18px ${bodyFont}`;
       ctx.fillText(song.artist, 242, y + 46, 700);
     });
 
-    const streakCardY = 1490;
+    const streakCardY = 1488;
 
-    ctx.fillStyle = "rgba(255,255,255,0.09)";
-    ctx.beginPath();
-    ctx.roundRect(92, streakCardY, 896, 110, 26);
-    ctx.fill();
+    ctx.fillStyle = exportTheme.labelColor;
+    ctx.font = `600 20px ${bodyFont}`;
+    ctx.fillText("LISTENING STREAK", 92, streakCardY + 24);
 
-    ctx.fillStyle = "rgba(255,255,255,0.58)";
-    ctx.font = "600 20px Instrument Sans, Arial";
-    ctx.fillText("LISTENING STREAK", 126, streakCardY + 34);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 44px Space Grotesk, Arial";
-    ctx.fillText(`${activePassport.listeningStreakDays} days`, 126, streakCardY + 82);
+    ctx.fillStyle = exportTheme.titleColor;
+    ctx.font = `800 44px ${displayFont}`;
+    ctx.fillText(`${activePassport.listeningStreakDays} days`, 92, streakCardY + 72);
     return canvas;
   }
 
@@ -970,14 +1479,31 @@ export default function App() {
     }
 
     const file = new File([blob], "auralize-instagram-story.png", { type: "image/png" });
+    const shareUrl =
+      publicProfilePayload != null
+        ? getPublicProfileUrl(publicProfilePayload)
+        : activePassport != null
+          ? getShareUrl(activePassport)
+          : null;
     try {
       if (navigator.canShare?.({ files: [file] }) && navigator.share) {
         await navigator.share({
           files: [file],
           title: "My Auralize Music Passport",
-          text: "Shared from Auralize"
+          text: shareUrl ? `Shared from Auralize\n${shareUrl}` : "Shared from Auralize",
+          url: shareUrl ?? undefined
         });
         setActionMessage("Share sheet opened. Choose Instagram if it appears on your device.");
+        return;
+      }
+
+      if (navigator.share && shareUrl) {
+        await navigator.share({
+          title: "My Auralize Music Passport",
+          text: "Shared from Auralize",
+          url: shareUrl
+        });
+        setActionMessage("Share sheet opened with your passport link. Choose Instagram if it appears on your device.");
         return;
       }
     } catch (error) {
@@ -985,6 +1511,16 @@ export default function App() {
         setActionMessage("Instagram sharing was canceled.");
         return;
       }
+    }
+
+    if (shareUrl) {
+      await copyText(shareUrl);
+      window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+      downloadCanvas(canvas, "auralize-instagram-story.png");
+      setActionMessage(
+        "Instagram opened in a new tab, your shareable link was copied, and the story image was downloaded for manual posting."
+      );
+      return;
     }
 
     downloadCanvas(canvas, "auralize-instagram-story.png");
@@ -1134,6 +1670,26 @@ export default function App() {
     applyDashboardUploadResponse(analysisPayload);
   }
 
+  async function handleAppleMusicSubmit() {
+    if (!file) {
+      setError("Choose an Apple Music CSV or JSON export first.");
+      return;
+    }
+
+    const selectedFile = file;
+    const cacheKey = buildFileAnalysisCacheKey("apple-music", selectedFile);
+    const cachedPayload = getCachedAnalysis<DashboardUploadResponse>(cacheKey);
+    if (cachedPayload) {
+      applyDashboardUploadResponse(cachedPayload);
+      setActionMessage("Loaded cached Apple Music dashboard for this file.");
+      return;
+    }
+
+    const analysisPayload = await postFile<DashboardUploadResponse>("/apple-music/analyze", selectedFile);
+    setCachedAnalysis(cacheKey, "apple-music", analysisPayload);
+    applyDashboardUploadResponse(analysisPayload);
+  }
+
   async function handleLastFmSubmit() {
     const username = parseLastFmUsername(lastFmUsername);
     if (!username) {
@@ -1165,6 +1721,8 @@ export default function App() {
         await handleTakeoutSubmit();
       } else if (sourceMode === "unified-takeout") {
         await handleUnifiedTakeoutSubmit();
+      } else if (sourceMode === "apple-music") {
+        await handleAppleMusicSubmit();
       } else {
         await handleLastFmSubmit();
       }
@@ -1331,6 +1889,30 @@ export default function App() {
               </button>
             </div>
 
+            <div className="mt-6 max-w-sm">
+              <label className="grid gap-2">
+                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                  Export Theme
+                </span>
+                <select
+                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
+                  onChange={(event) => setExportThemeId(event.target.value as ExportThemeId)}
+                  value={exportThemeId}
+                >
+                  {(Object.entries(EXPORT_THEME_OPTIONS) as Array<[ExportThemeId, ExportThemeDefinition]>).map(
+                    ([themeId, theme]) => (
+                      <option key={themeId} value={themeId}>
+                        {theme.label}
+                      </option>
+                    )
+                  )}
+                </select>
+              </label>
+              <p className="mt-2 text-sm text-[#9CA3AF]">
+                Theme styling and font pairing apply to both the PNG passport and Instagram story export.
+              </p>
+            </div>
+
             {actionMessage ? (
               <p className="mt-4 text-sm text-[#F0D080]">{actionMessage}</p>
             ) : null}
@@ -1343,10 +1925,11 @@ export default function App() {
             <div className="overflow-x-auto">
               <div
                 ref={passportRef}
-                className="mx-auto w-fit rounded-[2.5rem] bg-[#09131d] p-5"
+                className="mx-auto w-fit rounded-[2.5rem] p-5"
+                style={{ background: exportTheme.passportTheme.shellBg }}
               >
                 <Suspense fallback={<ChartSkeleton heightClass="h-[520px]" />}>
-                  <MusicPassportCard data={sharedPassport} />
+                  <MusicPassportCard data={sharedPassport} theme={exportTheme.passportTheme} />
                 </Suspense>
               </div>
             </div>
@@ -1481,7 +2064,7 @@ export default function App() {
                   Upload your history, paste a profile, or switch to live scrobbles.
                 </h1>
                 <p className="font-body mt-5 max-w-3xl text-sm leading-7 text-[#c0cad6] md:text-[1.08rem]">
-                  Use Google Takeout for YouTube Music-only analytics, switch to the unified YouTube tab to include music plays from the main YouTube app too, paste a YouTube Music profile link for a lightweight public preview, or use Last.fm Live Mode for a fresh snapshot of your listening identity.
+                  Use Google Takeout for YouTube Music-only analytics, switch to the unified YouTube tab to include music plays from the main YouTube app too, upload Apple Music activity exports, paste a YouTube Music profile link for a lightweight public preview, or use Last.fm Live Mode for a fresh snapshot of your listening identity.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <div className="hero-chip rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/80">
@@ -1492,6 +2075,9 @@ export default function App() {
                   </div>
                   <div className="hero-chip rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/80">
                     Unified YouTube mode
+                  </div>
+                  <div className="hero-chip rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/80">
+                    Apple Music import
                   </div>
                 </div>
               </div>
@@ -1543,6 +2129,17 @@ export default function App() {
                   type="button"
                 >
                   Last.fm Live Mode
+                </button>
+                <button
+                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
+                    sourceMode === "apple-music"
+                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
+                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
+                  }`}
+                  onClick={() => setSourceMode("apple-music")}
+                  type="button"
+                >
+                  Apple Music
                 </button>
               </div>
 
@@ -1667,6 +2264,60 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+              ) : sourceMode === "apple-music" ? (
+                <div
+                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${
+                    isDragActive
+                      ? "border-[#D4A853] bg-[#D4A853]/10"
+                      : "border-[#1E293B] bg-[#111827]"
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+                    <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+                      <div className="mb-4 rounded-full border border-[#1E293B] bg-[#182234] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
+                        Apple Music Mode
+                      </div>
+                      <p className="text-xl font-semibold text-white">
+                        Drop your Apple Music export here
+                      </p>
+                      <p className="mt-2 text-sm text-[#9CA3AF]">
+                        Upload an Apple Music Play Activity CSV or compatible JSON export to build the same dashboard, recap, and passport flow.
+                      </p>
+                      <p className="mt-4 max-w-xl text-xs text-[#9CA3AF]">
+                        Best results come from the Apple Music Play Activity export from privacy.apple.com because it includes timestamps and play durations.
+                      </p>
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                        <label className="cursor-pointer rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.02] hover:bg-[#F0D080]">
+                          Choose CSV or JSON
+                          <input
+                            className="sr-only"
+                            type="file"
+                            accept=".csv,.json,text/csv,application/json"
+                            onChange={handleFileChange}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
+                      <p className="text-sm font-semibold text-white">Supported Apple Music exports</p>
+                      <div className="mt-4 grid gap-3 text-sm text-[#9CA3AF]">
+                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+                          Apple Music Play Activity CSV
+                        </div>
+                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+                          compatible JSON exports with song, artist, timestamp, and duration fields
+                        </div>
+                        <div className="rounded-2xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-amber-100">
+                          Apple exports usually do not include artwork, so this mode uses a cleaner text-first presentation.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-6">
                   <label className="block text-sm font-semibold text-white">
@@ -1687,7 +2338,7 @@ export default function App() {
 
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col gap-2">
-                  {sourceMode === "takeout" || sourceMode === "unified-takeout" ? (
+                  {sourceMode === "takeout" || sourceMode === "unified-takeout" || sourceMode === "apple-music" ? (
                     <>
                       {file ? (
                         <p className="text-sm text-[#9CA3AF]">
@@ -1704,6 +2355,10 @@ export default function App() {
                       {sourceMode === "takeout" ? (
                         <p className="text-xs text-[#9CA3AF]">
                           The button uses your file if one is selected. Otherwise, it uses the YouTube Music profile link.
+                        </p>
+                      ) : sourceMode === "apple-music" ? (
+                        <p className="text-xs text-[#9CA3AF]">
+                          Apple Music mode builds the dashboard from a CSV or JSON export file.
                         </p>
                       ) : (
                         <p className="text-xs text-[#9CA3AF]">
@@ -1731,7 +2386,7 @@ export default function App() {
                 >
                   {isUploading
                     ? "Loading..."
-                    : sourceMode === "takeout" || sourceMode === "unified-takeout"
+                    : sourceMode === "takeout" || sourceMode === "unified-takeout" || sourceMode === "apple-music"
                       ? "Build dashboard or preview"
                       : "Start Live Mode"}
                 </button>
@@ -2197,15 +2852,37 @@ export default function App() {
                 <div className="overflow-x-auto">
                 <div
                   ref={passportRef}
-                  className="w-fit bg-[#06070b]"
+                  className="w-fit"
+                  style={{ background: exportTheme.passportTheme.shellBg }}
                 >
                   <Suspense fallback={<ChartSkeleton heightClass="h-[520px]" />}>
-                    <MusicPassportCard data={passportData} />
+                    <MusicPassportCard data={passportData} theme={exportTheme.passportTheme} />
                   </Suspense>
                 </div>
                 </div>
 
                 <div className="flex w-full max-w-sm flex-col gap-3 xl:pt-3">
+                  <label className="grid gap-2">
+                    <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
+                      Export Theme
+                    </span>
+                    <select
+                      className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
+                      onChange={(event) => setExportThemeId(event.target.value as ExportThemeId)}
+                      value={exportThemeId}
+                    >
+                      {(Object.entries(EXPORT_THEME_OPTIONS) as Array<[ExportThemeId, ExportThemeDefinition]>).map(
+                        ([themeId, theme]) => (
+                          <option key={themeId} value={themeId}>
+                            {theme.label}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+                  <p className="text-sm text-[#9CA3AF]">
+                    Pick from 10 export themes. The preview updates before you download or share.
+                  </p>
                   <button
                     className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
                     onClick={() => void handleExportAsImage()}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from app.services.apple_music import parse_apple_music_export
 from app.services.lastfm_api import build_lastfm_dashboard
 from app.services.parser import parse_unified_watch_history, parse_watch_history
 from app.services.response_cache import response_cache, sha256_digest
@@ -232,6 +234,45 @@ async def parse_unified_upload_file(
     return parsed_history, quality, content_hash
 
 
+async def parse_apple_music_upload_file(
+    file: UploadFile,
+) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
+    allowed_types = {
+        "application/json",
+        "text/json",
+        "application/octet-stream",
+        "text/csv",
+        "application/csv",
+        "application/vnd.ms-excel",
+    }
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Please upload an Apple Music CSV or JSON file.")
+
+    raw_content = await file.read()
+    if not raw_content:
+        raise HTTPException(status_code=400, detail="Uploaded Apple Music file is empty.")
+
+    content_hash = sha256_digest(raw_content)
+    cache_key = f"parse:apple-music:{content_hash}"
+    cached = response_cache.get(cache_key)
+    if cached is not None:
+        return cached[0], cached[1], content_hash
+
+    try:
+        enriched_history, quality = parse_apple_music_export(raw_content)
+    except (ValueError, json.JSONDecodeError, csv.Error) as exc:  # type: ignore[name-defined]
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not parse the Apple Music export. "
+                "Use Apple Music Play Activity CSV or a compatible JSON export."
+            ),
+        ) from exc
+
+    response_cache.set(cache_key, (enriched_history, quality), ANALYSIS_CACHE_TTL)
+    return enriched_history, quality, content_hash
+
+
 @app.post("/api/upload")
 async def upload_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
     parsed_history, quality, _content_hash = await parse_upload_file(file)
@@ -271,6 +312,30 @@ async def analyze_unified_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[
         "entries": parsed_history,
         "quality": quality,
         "dashboard": dashboard,
+    }
+    return response_cache.set(cache_key, response, ANALYSIS_CACHE_TTL)
+
+
+@app.post("/api/apple-music/analyze")
+async def analyze_apple_music_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any]:
+    enriched_history, quality, content_hash = await parse_apple_music_upload_file(file)
+    cache_key = f"response:apple-music-analyze:{content_hash}"
+    cached = response_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    response = {
+        "entries": [
+            {
+                "videoId": str(entry["videoId"]),
+                "title": str(entry["title"]),
+                "playCount": int(entry["playCount"]),
+                "timestamps": list(entry.get("timestamps") or []),
+            }
+            for entry in enriched_history
+        ],
+        "quality": quality,
+        "dashboard": build_dashboard_payload(enriched_history, source="apple-music"),
     }
     return response_cache.set(cache_key, response, ANALYSIS_CACHE_TTL)
 
