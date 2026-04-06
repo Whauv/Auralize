@@ -1,18 +1,21 @@
 # Auralize
 
-Auralize is a music listening visualizer for YouTube Music, music played from the regular YouTube app, and Last.fm. It combines a React + TypeScript + Vite frontend with a FastAPI backend.
+Auralize is a music listening visualizer for YouTube Music, music played from the regular
+YouTube app, Apple Music exports, and Last.fm. It combines a React + TypeScript + Vite
+frontend with a FastAPI backend.
 
 ## What It Does
 
 - Upload Google Takeout `watch-history.json`
-- Analyze `YouTube Music` only or a new `YouTube + Music` unified mode
+- Analyze `YouTube Music` only or a `YouTube + Music` unified mode
+- Import Apple Music Play Activity exports
 - Enrich tracks with YouTube Data API metadata
 - Build dashboards, recap stories, and a shareable Music Passport
 - Support Last.fm Live Mode
 
 ## Environment Variables
 
-Backend: [backend/.env](C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend\.env)
+Backend: [backend/.env](/C:/Users/prana/OneDrive/Documents/Playground/Auralize/backend/.env)
 
 ```env
 YOUTUBE_API_KEY=
@@ -29,38 +32,39 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ```text
 Auralize/
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   └── services/
-│   │       ├── lastfm_api.py
-│   │       ├── parser.py
-│   │       ├── stats.py
-│   │       ├── youtube_api.py
-│   │       └── youtube_profile.py
-│   ├── data/
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── DashboardAdvancedSections.tsx
-│   │   │   ├── DashboardBits.tsx
-│   │   │   ├── ErrorBoundary.tsx
-│   │   │   ├── MusicPassportCard.tsx
-│   │   │   └── RecapView.tsx
-│   │   ├── lib/
-│   │   │   ├── types.ts
-│   │   │   └── utils.ts
-│   │   ├── App.tsx
-│   │   ├── index.css
-│   │   └── main.tsx
-│   ├── Dockerfile
-│   └── package.json
-├── docs/
-│   └── screenshots/
-├── docker-compose.yml
-└── README.md
+|-- backend/
+|   |-- app/
+|   |   |-- main.py
+|   |   `-- services/
+|   |       |-- analysis.py
+|   |       |-- apple_music.py
+|   |       |-- lastfm_api.py
+|   |       |-- parser.py
+|   |       |-- response_cache.py
+|   |       |-- stats.py
+|   |       |-- youtube_api.py
+|   |       `-- youtube_profile.py
+|   |-- tests/
+|   |   |-- test_apple_music.py
+|   |   |-- test_parser.py
+|   |   `-- test_stats.py
+|   |-- Dockerfile
+|   |-- pyproject.toml
+|   |-- requirements-dev.txt
+|   `-- requirements.txt
+|-- docs/
+|   `-- screenshots/
+|-- frontend/
+|   |-- src/
+|   |   |-- components/
+|   |   |-- lib/
+|   |   |-- App.tsx
+|   |   |-- index.css
+|   |   `-- main.tsx
+|   |-- Dockerfile
+|   `-- package.json
+|-- docker-compose.yml
+`-- README.md
 ```
 
 ## Local Setup
@@ -84,11 +88,64 @@ Backend runs on `http://localhost:8000`.
 cd C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
-python -m ruff check app
-python -m ruff format app
+python -m ruff check app tests
+python -m ruff format app tests
 ```
 
-Ruff is configured in [backend/pyproject.toml](C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend\pyproject.toml) and is scoped to the backend app package.
+Ruff is configured in
+[backend/pyproject.toml](/C:/Users/prana/OneDrive/Documents/Playground/Auralize/backend/pyproject.toml).
+
+### Backend Tests
+
+```powershell
+cd C:\Users\prana\OneDrive\Documents\Playground\Auralize\backend
+.venv\Scripts\Activate.ps1
+python -m unittest discover -s tests -v
+```
+
+The backend tests cover:
+
+- YouTube Music and unified watch-history parsing
+- Apple Music CSV parsing
+- Core stats, genre, and mood aggregation
+
+### Frontend Tests
+
+```powershell
+cd C:\Users\prana\OneDrive\Documents\Playground\Auralize\frontend
+npm.cmd run test
+```
+
+Frontend component and shared-logic coverage includes:
+
+- source upload and mode switching
+- dashboard controls, compare view, and saved session actions
+- passport/share controls
+- dashboard filter interactions
+
+### Frontend E2E
+
+```powershell
+cd C:\Users\prana\OneDrive\Documents\Playground\Auralize\frontend
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
+```
+
+The Playwright suite covers:
+
+- uploading a Takeout file and rendering the dashboard
+- using the dashboard filters against mocked analysis data
+
+### Continuous Integration
+
+GitHub Actions now validates:
+
+- Ruff on backend code and tests
+- backend unit tests
+- backend compile checks
+- frontend TypeScript build checks
+- frontend Vitest suite
+- frontend Playwright e2e smoke tests
 
 ### Frontend
 
@@ -119,6 +176,7 @@ Services:
 - `POST /api/analyze`
 - `POST /api/upload-unified`
 - `POST /api/analyze-unified`
+- `POST /api/apple-music/analyze`
 - `POST /api/stats`
 - `POST /api/stats-unified`
 - `POST /api/genre-breakdown`
@@ -130,24 +188,26 @@ Services:
 
 ## Unified YouTube Mode
 
-The `YouTube + Music` tab uses the same Google Takeout file as the standard Takeout mode, but it also includes music-like plays from the regular YouTube app.
+The `YouTube + Music` tab uses the same Google Takeout file as the standard Takeout mode, but it
+also includes music-like plays from the regular YouTube app.
 
 Included:
 
 - YouTube Music listens
-- official audios
-- music videos
-- lyric videos
-- remixes
+- Official audios
+- Music videos
+- Lyric videos
+- Remixes
 - `Artist - Topic` uploads
 
 Filtered out:
 
-- search entries
-- non-music YouTube videos
-- unrelated standard YouTube activity
+- Search entries
+- Non-music YouTube videos
+- Unrelated standard YouTube activity
 
-This mode is now faster than before because the frontend uses a single backend analysis request instead of making separate upload, stats, genre, and mood requests for the same file.
+This mode is faster than before because the frontend uses a single backend analysis request
+instead of making separate upload, stats, genre, and mood requests for the same file.
 
 ## Screenshots
 

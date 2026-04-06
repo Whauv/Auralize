@@ -1,5 +1,7 @@
 frontend/node_modules
 frontend/dist
+frontend/coverage
+frontend/test-results
 frontend/.env
 frontend/*.tsbuildinfo
 backend/.venv
@@ -7,4 +9,5 @@ backend/.env
 backend/__pycache__
 backend/app/__pycache__
 backend/app/services/__pycache__
+backend/tests/__pycache__
 docs/screenshots/*.png
