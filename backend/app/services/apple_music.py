@@ -97,7 +97,11 @@ def build_apple_music_history(records: list[dict[str, Any]]) -> list[dict[str, A
 
     enriched_history = list(aggregated.values())
     enriched_history.sort(
-        key=lambda item: (-int(item["playCount"]), str(item["artist"]).lower(), str(item["title"]).lower())
+        key=lambda item: (
+            -int(item["playCount"]),
+            str(item["artist"]).lower(),
+            str(item["title"]).lower(),
+        )
     )
     return enriched_history
 
@@ -110,7 +114,9 @@ def build_apple_music_quality_summary(
     warnings: list[str] = []
 
     if total_entries == 0:
-        warnings.append("This Apple Music export is empty, so there is no listening data to analyze.")
+        warnings.append(
+            "This Apple Music export is empty, so there is no listening data to analyze."
+        )
     if usable_entries == 0:
         warnings.append(
             "No playable Apple Music activity rows were found. "

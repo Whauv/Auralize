@@ -11,21 +11,19 @@ import {
   useState
 } from "react";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import html2canvas from "html2canvas";
-import type { MusicPassportData, MusicPassportTheme } from "./components/MusicPassportCard";
-import {
-  ChartSkeleton,
-  LoadingSpinner,
-  Section
-} from "./components/DashboardBits";
+import type { MusicPassportData } from "./components/MusicPassportCard";
+import { LoadingSpinner } from "./components/DashboardBits";
+import { DashboardWorkspace } from "./components/DashboardWorkspace";
+import { SourceStudio, type SourceMode } from "./components/SourceStudio";
+import { ShareStudio } from "./components/ShareStudio";
 import type {
   AchievementBadge,
   DashboardUploadResponse,
   DashboardResponse,
   MemoryLaneEntry,
+  PersonaProfile,
   PlaylistBundle,
   PlaylistMode,
-  PersonaProfile,
   ParsedHistoryEntry,
   PublicProfileSharePayload,
   RecapThemePack,
@@ -47,35 +45,43 @@ import {
   buildGenreBreakdownFromHistory,
   buildMoodTimelineFromHistory,
   buildPersonaProfile,
-  buildFileAnalysisCacheKey,
-  buildJsonAnalysisCacheKey,
   buildSmartInsights,
   buildStatsPayloadFromHistory,
   buildTasteEvolution,
   classifyGenre,
-  copyText,
   decodePublicProfilePayload,
   decodeSharePayload,
   downloadTextFile,
   filterHistoryByTimeframe,
   formatHours,
-  getCachedAnalysis,
   getEntryMoodLabels,
-  getPublicProfileUrl,
-  getShareUrl,
-  parseLastFmUsername,
-  parseYoutubeMusicProfileUrl,
   playlistToText,
-  postFile,
-  postJson,
-  RECAP_VARIANT_LABELS,
-  setCachedAnalysis,
-  TIMEFRAME_COMPARE_OPTIONS,
   TIMEFRAME_LABELS,
   buildSavedSession
 } from "./lib/utils";
-
-type SourceMode = "takeout" | "unified-takeout" | "apple-music" | "lastfm";
+import {
+  copyPassportShareLink,
+  copyPublicShareLink,
+  exportInstagramStory,
+  exportPassportImage,
+  type ExportThemeDefinition,
+  shareToInstagram,
+} from "./lib/exportShare";
+import {
+  loadDashboardPreferences,
+  loadSavedSessions,
+  saveDashboardPreferences,
+  saveSavedSessions,
+} from "./lib/preferences";
+import {
+  analyzeAppleMusic,
+  analyzeLastFm,
+  analyzeTakeout,
+  analyzeUnifiedTakeout,
+  analyzeYoutubeProfile,
+} from "./lib/sourceAnalysis";
+import { SharedPassportPage } from "./components/SharedPassportPage";
+import { SharedProfilePage } from "./components/SharedProfilePage";
 type DashboardDensity = "simple" | "full";
 type ExportThemeId =
   | "aurora-noir"
@@ -90,21 +96,6 @@ type ExportThemeId =
   | "ember-dusk";
 const RecapView = lazy(() =>
   import("./components/RecapView").then((module) => ({ default: module.RecapView }))
-);
-const DashboardAdvancedSections = lazy(() =>
-  import("./components/DashboardAdvancedSections").then((module) => ({
-    default: module.DashboardAdvancedSections
-  }))
-);
-const DashboardOverviewSections = lazy(() =>
-  import("./components/DashboardOverviewSections").then((module) => ({
-    default: module.DashboardOverviewSections
-  }))
-);
-const MusicPassportCard = lazy(() =>
-  import("./components/MusicPassportCard").then((module) => ({
-    default: module.MusicPassportCard
-  }))
 );
 
 const DASHBOARD_THEME_PACKS: Record<
@@ -179,30 +170,6 @@ const DASHBOARD_THEME_PACKS: Record<
     pieColors: ["#5EEAD4", "#2DD4BF", "#D4A853", "#CCFBF1", "#14B8A6", "#7DD3FC"]
   }
 };
-const PREFERENCES_STORAGE_KEY = "auralize-dashboard-preferences";
-const SAVED_SESSIONS_STORAGE_KEY = "auralize-saved-sessions";
-
-type ExportThemeDefinition = {
-  label: string;
-  storyBackground: string;
-  storyPanelFill: string;
-  storyPanelBorder: string;
-  noteColor: string;
-  labelColor: string;
-  titleColor: string;
-  subtitleColor: string;
-  accentColor: string;
-  accentSoft: string;
-  rankBackground: string;
-  dividerColor: string;
-  auroraBands: string[];
-  displayFont: string;
-  bodyFont: string;
-  displayFontLoad: string;
-  bodyFontLoad: string;
-  passportTheme: MusicPassportTheme;
-};
-
 const EXPORT_THEME_OPTIONS: Record<ExportThemeId, ExportThemeDefinition> = {
   "aurora-noir": {
     label: "Aurora Noir",
@@ -818,67 +785,44 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
-      if (!raw) {
-        return;
-      }
+    const saved = loadDashboardPreferences();
+    if (!saved) {
+      return;
+    }
 
-      const saved = JSON.parse(raw) as Partial<{
-        timeframe: TimeframeOption;
-        recapTheme: RecapThemePack;
-        recapVariant: RecapVariant;
-        dashboardDensity: DashboardDensity;
-        exportThemeId: ExportThemeId;
-      }>;
-
-      if (saved.timeframe) {
-        setTimeframe(saved.timeframe);
-      }
-      if (saved.recapTheme) {
-        setRecapTheme(saved.recapTheme);
-      }
-      if (saved.recapVariant) {
-        setRecapVariant(saved.recapVariant);
-      }
-      if (saved.dashboardDensity) {
-        setDashboardDensity(saved.dashboardDensity);
-      }
-      if (saved.exportThemeId) {
-        setExportThemeId(saved.exportThemeId);
-      }
-    } catch {
-      window.localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+    if (saved.timeframe) {
+      setTimeframe(saved.timeframe);
+    }
+    if (saved.recapTheme) {
+      setRecapTheme(saved.recapTheme);
+    }
+    if (saved.recapVariant) {
+      setRecapVariant(saved.recapVariant);
+    }
+    if (saved.dashboardDensity) {
+      setDashboardDensity(saved.dashboardDensity);
+    }
+    if (saved.exportThemeId) {
+      setExportThemeId(saved.exportThemeId as ExportThemeId);
     }
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(SAVED_SESSIONS_STORAGE_KEY);
-      if (!raw) {
-        return;
-      }
-      setSavedSessions(JSON.parse(raw) as SavedSession[]);
-    } catch {
-      window.localStorage.removeItem(SAVED_SESSIONS_STORAGE_KEY);
-    }
+    setSavedSessions(loadSavedSessions());
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      PREFERENCES_STORAGE_KEY,
-      JSON.stringify({
-        timeframe,
-        recapTheme,
-        recapVariant,
-        dashboardDensity,
-        exportThemeId
-      })
-    );
+    saveDashboardPreferences({
+      timeframe,
+      recapTheme,
+      recapVariant,
+      dashboardDensity,
+      exportThemeId
+    });
   }, [timeframe, recapTheme, recapVariant, dashboardDensity, exportThemeId]);
 
   useEffect(() => {
-    window.localStorage.setItem(SAVED_SESSIONS_STORAGE_KEY, JSON.stringify(savedSessions));
+    saveSavedSessions(savedSessions);
   }, [savedSessions]);
 
   useEffect(() => {
@@ -1140,403 +1084,41 @@ export default function App() {
     setSavedSessions((current) => current.filter((session) => session.id !== sessionId));
   }
 
-  async function waitForExportAssets(node: HTMLElement) {
-    await document.fonts.ready;
-
-    const images = Array.from(node.querySelectorAll("img"));
-    await Promise.all(
-      images.map(
-        (image) =>
-          new Promise<void>((resolve) => {
-            if (image.complete) {
-              resolve();
-              return;
-            }
-
-            image.addEventListener("load", () => resolve(), { once: true });
-            image.addEventListener("error", () => resolve(), { once: true });
-          })
-      )
-    );
-  }
-
-  async function ensureExportFontsLoaded(theme: ExportThemeDefinition) {
-    if (!("fonts" in document)) {
-      return;
-    }
-
-    await Promise.all([
-      document.fonts.load(theme.displayFontLoad),
-      document.fonts.load(theme.bodyFontLoad),
-      document.fonts.load("900 64px Archivo Black"),
-      document.fonts.load("700 24px Space Grotesk"),
-      document.fonts.load("600 20px Instrument Sans")
-    ]);
-  }
-
-  async function renderNodeToCanvas(node: HTMLElement, backgroundColor: string | null) {
-    await waitForExportAssets(node);
-    const rect = node.getBoundingClientRect();
-
-    return html2canvas(node, {
-      backgroundColor,
-      scale: 2.5,
-      useCORS: true,
-      foreignObjectRendering: false,
-      imageTimeout: 15000,
-      logging: false,
-      width: Math.ceil(rect.width),
-      height: Math.ceil(rect.height),
-      windowWidth: Math.ceil(rect.width),
-      windowHeight: Math.ceil(rect.height),
-      scrollX: 0,
-      scrollY: 0
-    });
-  }
-
-  async function renderPassportCanvas() {
-    if (!passportRef.current) {
-      return null;
-    }
-
-    await ensureExportFontsLoaded(exportTheme);
-    return renderNodeToCanvas(passportRef.current, "#06070b");
-  }
-
-  function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
-    const link = document.createElement("a");
-    link.href = canvas.toDataURL("image/png");
-    link.download = filename;
-    link.click();
-  }
-
-  async function loadCanvasImage(src: string | null) {
-    if (!src) {
-      return null;
-    }
-
-    return new Promise<HTMLImageElement | null>((resolve) => {
-      const image = new Image();
-      image.crossOrigin = "anonymous";
-      image.onload = () => resolve(image);
-      image.onerror = () => resolve(null);
-      image.src = src;
-    });
-  }
-
-  function drawRoundedImageCover(
-    ctx: CanvasRenderingContext2D,
-    image: HTMLImageElement,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number
-  ) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, radius);
-    ctx.clip();
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
-    ctx.fillRect(x, y, width, height);
-
-    const sourceWidth = image.naturalWidth || width;
-    const sourceHeight = image.naturalHeight || height;
-    const scale = Math.max(width / sourceWidth, height / sourceHeight);
-    const drawWidth = sourceWidth * scale;
-    const drawHeight = sourceHeight * scale;
-    const drawX = x + (width - drawWidth) / 2;
-    const drawY = y + (height - drawHeight) / 2;
-
-    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-    ctx.restore();
-  }
-
-  async function buildInstagramStoryCanvas() {
-    if (!activePassport) {
-      return null;
-    }
-
-    await ensureExportFontsLoaded(exportTheme);
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return null;
-    }
-
-    const displayFont = exportTheme.displayFont;
-    const bodyFont = exportTheme.bodyFont;
-
-    ctx.fillStyle = exportTheme.storyBackground;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const auroraBands = [
-      { color: exportTheme.auroraBands[0], x: -120, y: -140, width: 240, height: 2320, angle: -0.18 },
-      { color: exportTheme.auroraBands[1], x: 90, y: -160, width: 220, height: 2360, angle: 0.14 },
-      { color: exportTheme.auroraBands[2], x: 300, y: -180, width: 210, height: 2340, angle: -0.12 },
-      { color: exportTheme.auroraBands[3], x: 520, y: -150, width: 260, height: 2380, angle: 0.16 },
-      { color: exportTheme.auroraBands[4], x: 760, y: -170, width: 230, height: 2380, angle: -0.14 },
-      { color: exportTheme.auroraBands[5], x: 930, y: -140, width: 210, height: 2320, angle: 0.12 }
-    ];
-
-    auroraBands.forEach((band) => {
-      ctx.save();
-      ctx.translate(band.x, band.y);
-      ctx.rotate(band.angle);
-      const bandGradient = ctx.createLinearGradient(0, 0, band.width, 0);
-      bandGradient.addColorStop(0, "rgba(255,255,255,0)");
-      bandGradient.addColorStop(0.5, band.color);
-      bandGradient.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = bandGradient;
-      ctx.fillRect(0, 0, band.width, band.height);
-      ctx.restore();
-    });
-
-    ctx.fillStyle = "rgba(255,255,255,0.02)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = exportTheme.dividerColor;
-    for (let x = 0; x < canvas.width; x += 108) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < canvas.height; y += 108) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    const floatingShapes = [
-      { text: "♪", x: 106, y: 190, size: 92, color: "rgba(75, 113, 255, 0.14)" },
-      { text: "♬", x: 902, y: 212, size: 76, color: "rgba(58, 198, 184, 0.16)" },
-      { text: "♫", x: 874, y: 1570, size: 108, color: "rgba(223, 104, 153, 0.14)" },
-      { text: "♩", x: 120, y: 1708, size: 82, color: "rgba(104, 89, 239, 0.12)" }
-    ];
-
-    floatingShapes.forEach((shape) => {
-      ctx.fillStyle = shape.color;
-      ctx.font = `700 ${shape.size}px ${bodyFont}`;
-      ctx.fillText(shape.text, shape.x, shape.y);
-    });
-
-    ctx.fillStyle = exportTheme.labelColor;
-    ctx.font = `600 26px ${bodyFont}`;
-    ctx.fillText("AURALIZE", 86, 112);
-
-    ctx.fillStyle = exportTheme.titleColor;
-    ctx.font = `900 94px ${displayFont}`;
-    ctx.fillText("Music", 82, 214);
-    ctx.fillText("Passport", 82, 312);
-
-    const storyPanelX = 60;
-    const storyPanelY = 400;
-    const storyPanelWidth = 960;
-    const storyPanelHeight = 1320;
-
-    ctx.save();
-    ctx.fillStyle = exportTheme.storyPanelFill;
-    ctx.strokeStyle = exportTheme.storyPanelBorder;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(storyPanelX, storyPanelY, storyPanelWidth, storyPanelHeight, 44);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    const topArtistImage = await loadCanvasImage(activePassport.topArtist.thumbnail);
-    if (topArtistImage) {
-      drawRoundedImageCover(ctx, topArtistImage, 92, 438, 128, 128, 30);
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
-      ctx.beginPath();
-      ctx.roundRect(92, 438, 128, 128, 30);
-      ctx.fill();
-    }
-
-    ctx.fillStyle = exportTheme.labelColor;
-    ctx.font = `600 20px ${bodyFont}`;
-    ctx.fillText("#1 ARTIST", 252, 478);
-
-    ctx.fillStyle = exportTheme.titleColor;
-    ctx.font = `800 48px ${displayFont}`;
-    ctx.fillText(activePassport.topArtist.name, 252, 534, 720);
-
-    ctx.fillStyle = exportTheme.subtitleColor;
-    ctx.font = `500 24px ${bodyFont}`;
-    ctx.fillText("leads this snapshot", 252, 572);
-
-    const statCardY = 618;
-    const statCardWidth = 286;
-    const statGap = 24;
-    const statCards = [
-      { label: "Listening", value: `${activePassport.totalListeningHours.toFixed(1)} hrs` },
-      { label: "Mood", value: activePassport.dominantMood },
-      { label: "Genre", value: activePassport.dominantGenre }
-    ];
-
-    statCards.forEach((card, index) => {
-      const x = 92 + index * (statCardWidth + statGap);
-      ctx.fillStyle = exportTheme.labelColor;
-      ctx.font = `600 18px ${bodyFont}`;
-      ctx.fillText(card.label.toUpperCase(), x, statCardY + 20);
-
-      ctx.fillStyle = exportTheme.titleColor;
-      ctx.font = `800 34px ${displayFont}`;
-      ctx.fillText(card.value, x, statCardY + 66, statCardWidth - 8);
-    });
-
-    ctx.fillStyle = exportTheme.labelColor;
-    ctx.font = `600 22px ${bodyFont}`;
-    ctx.fillText("Top 10 songs in this frame", 92, 772);
-
-    const songs = activePassport.topSongs.slice(0, 10);
-    const songThumbs = await Promise.all(songs.map((song) => loadCanvasImage(song.thumbnail)));
-
-    songs.forEach((song, index) => {
-      const y = 800 + index * 66;
-
-      ctx.fillStyle = exportTheme.rankBackground;
-      ctx.beginPath();
-      ctx.roundRect(112, y + 8, 40, 40, 14);
-      ctx.fill();
-
-      ctx.fillStyle = exportTheme.titleColor;
-      ctx.font = `700 22px ${displayFont}`;
-      ctx.fillText(String(index + 1), 124, y + 33);
-
-      const thumb = songThumbs[index];
-      if (thumb) {
-        drawRoundedImageCover(ctx, thumb, 174, y + 6, 44, 44, 14);
-      } else {
-        ctx.fillStyle = "rgba(255,255,255,0.08)";
-        ctx.beginPath();
-        ctx.roundRect(174, y + 6, 44, 44, 14);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = exportTheme.titleColor;
-      ctx.font = `700 20px ${displayFont}`;
-      ctx.fillText(song.title, 242, y + 26, 700);
-
-      ctx.fillStyle = exportTheme.subtitleColor;
-      ctx.font = `500 18px ${bodyFont}`;
-      ctx.fillText(song.artist, 242, y + 46, 700);
-    });
-
-    const streakCardY = 1488;
-
-    ctx.fillStyle = exportTheme.labelColor;
-    ctx.font = `600 20px ${bodyFont}`;
-    ctx.fillText("LISTENING STREAK", 92, streakCardY + 24);
-
-    ctx.fillStyle = exportTheme.titleColor;
-    ctx.font = `800 44px ${displayFont}`;
-    ctx.fillText(`${activePassport.listeningStreakDays} days`, 92, streakCardY + 72);
-    return canvas;
-  }
 
   async function handleExportAsImage() {
-    const canvas = await renderPassportCanvas();
-    if (!canvas) {
+    const message = await exportPassportImage(passportRef.current, exportTheme);
+    if (!message) {
       return;
     }
-
-    downloadCanvas(canvas, "my-music-passport.png");
-    setActionMessage("Passport exported as PNG.");
+    setActionMessage(message);
   }
 
   async function handleExportInstagramStory() {
-    const canvas = await buildInstagramStoryCanvas();
-    if (!canvas) {
+    const message = await exportInstagramStory(activePassport, exportTheme);
+    if (!message) {
       return;
     }
-
-    downloadCanvas(canvas, "my-music-passport-instagram-story.png");
-    setActionMessage("Instagram story image exported as PNG.");
+    setActionMessage(message);
   }
 
   async function handleShareToInstagram() {
-    const canvas = await buildInstagramStoryCanvas();
-    if (!canvas) {
-      return;
-    }
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((value) => resolve(value), "image/png");
+    const message = await shareToInstagram({
+      activePassport,
+      publicProfilePayload,
+      exportTheme
     });
-    if (!blob) {
-      setActionMessage("Could not prepare the Instagram image.");
+    if (!message) {
       return;
     }
-
-    const file = new File([blob], "auralize-instagram-story.png", { type: "image/png" });
-    const shareUrl =
-      publicProfilePayload != null
-        ? getPublicProfileUrl(publicProfilePayload)
-        : activePassport != null
-          ? getShareUrl(activePassport)
-          : null;
-    try {
-      if (navigator.canShare?.({ files: [file] }) && navigator.share) {
-        await navigator.share({
-          files: [file],
-          title: "My Auralize Music Passport",
-          text: shareUrl ? `Shared from Auralize\n${shareUrl}` : "Shared from Auralize",
-          url: shareUrl ?? undefined
-        });
-        setActionMessage("Share sheet opened. Choose Instagram if it appears on your device.");
-        return;
-      }
-
-      if (navigator.share && shareUrl) {
-        await navigator.share({
-          title: "My Auralize Music Passport",
-          text: "Shared from Auralize",
-          url: shareUrl
-        });
-        setActionMessage("Share sheet opened with your passport link. Choose Instagram if it appears on your device.");
-        return;
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        setActionMessage("Instagram sharing was canceled.");
-        return;
-      }
-    }
-
-    if (shareUrl) {
-      await copyText(shareUrl);
-      window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
-      downloadCanvas(canvas, "auralize-instagram-story.png");
-      setActionMessage(
-        "Instagram opened in a new tab, your shareable link was copied, and the story image was downloaded for manual posting."
-      );
-      return;
-    }
-
-    downloadCanvas(canvas, "auralize-instagram-story.png");
-    setActionMessage(
-      "Direct Instagram sharing is not available here, so a story-ready PNG was downloaded instead."
-    );
+    setActionMessage(message);
   }
 
   async function handleCopyShareableLink(payload: MusicPassportData) {
-    await copyText(getShareUrl(payload));
-    setActionMessage("Shareable passport link copied to clipboard.");
+    setActionMessage(await copyPassportShareLink(payload));
   }
 
   async function handleCopyPublicProfileLink(payload: PublicProfileSharePayload) {
-    await copyText(getPublicProfileUrl(payload));
-    setActionMessage("Public profile link copied to clipboard.");
+    setActionMessage(await copyPublicShareLink(payload));
   }
 
   function handleExportDashboardJson(payload: PublicProfileSharePayload) {
@@ -1609,105 +1191,43 @@ export default function App() {
     }
 
     if (!file && youtubeMusicProfileUrl.trim()) {
-      const normalizedProfileUrl = parseYoutubeMusicProfileUrl(youtubeMusicProfileUrl);
-      if (!normalizedProfileUrl) {
-        setError("Enter a valid YouTube Music profile link like https://music.youtube.com/@yourhandle.");
-        return;
-      }
-
-      const cacheKey = buildJsonAnalysisCacheKey("youtube-profile", normalizedProfileUrl);
-      const cachedPayload = getCachedAnalysis<DashboardResponse>(cacheKey);
-      if (cachedPayload) {
-        applyDashboardResponse(cachedPayload);
-        setActionMessage("Loaded cached public profile preview.");
-        return;
-      }
-
-      const payload = await postJson<DashboardResponse>("/youtube-profile", {
-        url: normalizedProfileUrl
-      });
-      setCachedAnalysis(cacheKey, "youtube-profile-request", payload);
+      const { payload, message } = await analyzeYoutubeProfile(youtubeMusicProfileUrl);
       applyDashboardResponse(payload);
+      if (message) {
+        setActionMessage(message);
+      }
       return;
     }
 
-    const selectedFile = file;
-    if (!selectedFile) {
-      setError("Choose a watch-history.json file or paste a YouTube Music profile link first.");
-      return;
+    const { payload, message } = await analyzeTakeout(file);
+    applyDashboardUploadResponse(payload);
+    if (message) {
+      setActionMessage(message);
     }
-
-    const cacheKey = buildFileAnalysisCacheKey("takeout", selectedFile);
-    const cachedPayload = getCachedAnalysis<DashboardUploadResponse>(cacheKey);
-    if (cachedPayload) {
-      applyDashboardUploadResponse(cachedPayload);
-      setActionMessage("Loaded cached dashboard for this file.");
-      return;
-    }
-
-    const analysisPayload = await postFile<DashboardUploadResponse>("/analyze", selectedFile);
-    setCachedAnalysis(cacheKey, "takeout", analysisPayload);
-    applyDashboardUploadResponse(analysisPayload);
   }
 
   async function handleUnifiedTakeoutSubmit() {
-    if (!file) {
-      setError("Choose a watch-history.json file first.");
-      return;
+    const { payload, message } = await analyzeUnifiedTakeout(file);
+    applyDashboardUploadResponse(payload);
+    if (message) {
+      setActionMessage(message);
     }
-
-    const selectedFile = file;
-    const cacheKey = buildFileAnalysisCacheKey("unified-takeout", selectedFile);
-    const cachedPayload = getCachedAnalysis<DashboardUploadResponse>(cacheKey);
-    if (cachedPayload) {
-      applyDashboardUploadResponse(cachedPayload);
-      setActionMessage("Loaded cached unified dashboard for this file.");
-      return;
-    }
-
-    const analysisPayload = await postFile<DashboardUploadResponse>("/analyze-unified", selectedFile);
-    setCachedAnalysis(cacheKey, "unified-takeout", analysisPayload);
-    applyDashboardUploadResponse(analysisPayload);
   }
 
   async function handleAppleMusicSubmit() {
-    if (!file) {
-      setError("Choose an Apple Music CSV or JSON export first.");
-      return;
+    const { payload, message } = await analyzeAppleMusic(file);
+    applyDashboardUploadResponse(payload);
+    if (message) {
+      setActionMessage(message);
     }
-
-    const selectedFile = file;
-    const cacheKey = buildFileAnalysisCacheKey("apple-music", selectedFile);
-    const cachedPayload = getCachedAnalysis<DashboardUploadResponse>(cacheKey);
-    if (cachedPayload) {
-      applyDashboardUploadResponse(cachedPayload);
-      setActionMessage("Loaded cached Apple Music dashboard for this file.");
-      return;
-    }
-
-    const analysisPayload = await postFile<DashboardUploadResponse>("/apple-music/analyze", selectedFile);
-    setCachedAnalysis(cacheKey, "apple-music", analysisPayload);
-    applyDashboardUploadResponse(analysisPayload);
   }
 
   async function handleLastFmSubmit() {
-    const username = parseLastFmUsername(lastFmUsername);
-    if (!username) {
-      setError("Enter a Last.fm username or paste a Last.fm profile URL to use Live Mode.");
-      return;
-    }
-
-    const cacheKey = buildJsonAnalysisCacheKey("lastfm", username);
-    const cachedPayload = getCachedAnalysis<DashboardResponse>(cacheKey);
-    if (cachedPayload) {
-      applyDashboardResponse(cachedPayload);
-      setActionMessage("Loaded cached Last.fm snapshot.");
-      return;
-    }
-
-    const payload = await postJson<DashboardResponse>("/lastfm", { username });
-    setCachedAnalysis(cacheKey, "lastfm", payload);
+    const { payload, message } = await analyzeLastFm(lastFmUsername);
     applyDashboardResponse(payload);
+    if (message) {
+      setActionMessage(message);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1741,201 +1261,27 @@ export default function App() {
   }
 
   if (sharedProfile) {
-    return (
-      <main className="relative isolate min-h-screen px-4 py-8 text-slate-100 md:px-6">
-        <motion.div className="scroll-glow" style={{ scaleX: progressScale }} />
-        <AmbientMusicScene />
-        <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-8">
-          <motion.section
-            className="rounded-[2rem] border border-[#1E293B] bg-[#111827] p-6 md:p-8 backdrop-blur"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
-          >
-            <p className="text-sm uppercase tracking-[0.35em] text-[#F59E0B]">
-              Public Listening Profile
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
-              {sharedProfile.timeframeLabel} listening snapshot
-            </h1>
-            <p className="mt-3 max-w-2xl text-[#9CA3AF]">
-              Shared from Auralize as a read-only profile page for {sharedProfile.sourceLabel}.
-            </p>
-          </motion.section>
-
-          <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-            <Section
-              title="Profile Summary"
-              subtitle="A quick read on the listening identity inside this shared snapshot."
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top Artist</p>
-                  <p className="mt-3 text-2xl font-semibold text-white">
-                    {sharedProfile.passport.topArtist.name}
-                  </p>
-                </div>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Listening Time</p>
-                  <p className="mt-3 text-2xl font-semibold text-white">
-                    {sharedProfile.passport.totalListeningHours.toFixed(1)} hrs
-                  </p>
-                </div>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Dominant Genre</p>
-                  <p className="mt-3 text-2xl font-semibold text-white">
-                    {sharedProfile.passport.dominantGenre}
-                  </p>
-                </div>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Dominant Mood</p>
-                  <p className="mt-3 text-2xl font-semibold text-white">
-                    {sharedProfile.passport.dominantMood}
-                  </p>
-                </div>
-              </div>
-              {sharedProfile.persona ? (
-                <div className="mt-5 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Persona</p>
-                  <p className="mt-3 text-2xl font-semibold text-white">
-                    {sharedProfile.persona.title}
-                  </p>
-                  <p className="mt-2 text-sm text-[#9CA3AF]">
-                    {sharedProfile.persona.subtitle}
-                  </p>
-                </div>
-              ) : null}
-            </Section>
-
-            <Section
-              title="Top Songs"
-              subtitle="The tracks that define this shared listening profile."
-            >
-              <div className="grid gap-3">
-                {sharedProfile.stats.topSongs.slice(0, 6).map((song) => (
-                  <article
-                    key={song.videoId}
-                    className="flex items-center gap-4 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4"
-                  >
-                    {song.thumbnail ? (
-                      <img src={song.thumbnail} alt={song.title} className="h-16 w-16 rounded-2xl object-cover" />
-                    ) : (
-                      <div className="h-16 w-16 rounded-2xl bg-[#D4A853]/10" />
-                    )}
-                    <div className="min-w-0">
-                      <h3 className="truncate text-lg font-semibold text-white">{song.title}</h3>
-                      <p className="truncate text-sm text-[#9CA3AF]">{song.artist}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </Section>
-          </div>
-        </div>
-      </main>
-    );
+    return <SharedProfilePage payload={sharedProfile} progressScale={progressScale} />;
   }
 
   if (sharedPassport) {
     return (
-      <main className="relative isolate min-h-screen px-4 py-8 text-slate-100 md:px-6">
-        <motion.div className="scroll-glow" style={{ scaleX: progressScale }} />
-        <AmbientMusicScene />
-        <div className="relative z-10 mx-auto flex max-w-5xl flex-col gap-8">
-          <motion.section
-            className="rounded-[2rem] border border-[#1E293B] bg-[#111827] p-6 md:p-8 backdrop-blur"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
-          >
-            <p className="text-sm uppercase tracking-[0.35em] text-[#F59E0B]">
-              Shared Passport
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
-              View-only music passport
-            </h1>
-            <p className="mt-3 max-w-2xl text-[#9CA3AF]">
-              This shared link opens a read-only version of the music passport card.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button
-                className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                onClick={() => void handleExportAsImage()}
-                type="button"
-              >
-                Export as Image
-              </button>
-              <button
-                className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                onClick={() => void handleCopyShareableLink(sharedPassport)}
-                type="button"
-              >
-                Copy Shareable Link
-              </button>
-              <button
-                className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                onClick={() => void handleShareToInstagram()}
-                type="button"
-              >
-                Share to Instagram
-              </button>
-              <button
-                className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                onClick={() => void handleExportInstagramStory()}
-                type="button"
-              >
-                Export Instagram Story
-              </button>
-            </div>
-
-            <div className="mt-6 max-w-sm">
-              <label className="grid gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                  Export Theme
-                </span>
-                <select
-                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
-                  onChange={(event) => setExportThemeId(event.target.value as ExportThemeId)}
-                  value={exportThemeId}
-                >
-                  {(Object.entries(EXPORT_THEME_OPTIONS) as Array<[ExportThemeId, ExportThemeDefinition]>).map(
-                    ([themeId, theme]) => (
-                      <option key={themeId} value={themeId}>
-                        {theme.label}
-                      </option>
-                    )
-                  )}
-                </select>
-              </label>
-              <p className="mt-2 text-sm text-[#9CA3AF]">
-                Theme styling and font pairing apply to both the PNG passport and Instagram story export.
-              </p>
-            </div>
-
-            {actionMessage ? (
-              <p className="mt-4 text-sm text-[#F0D080]">{actionMessage}</p>
-            ) : null}
-          </motion.section>
-
-          <Section
-            title="Music Passport"
-            subtitle="A compact card you can export or share directly."
-          >
-            <div className="overflow-x-auto">
-              <div
-                ref={passportRef}
-                className="mx-auto w-fit rounded-[2.5rem] p-5"
-                style={{ background: exportTheme.passportTheme.shellBg }}
-              >
-                <Suspense fallback={<ChartSkeleton heightClass="h-[520px]" />}>
-                  <MusicPassportCard data={sharedPassport} theme={exportTheme.passportTheme} />
-                </Suspense>
-              </div>
-            </div>
-          </Section>
-        </div>
-      </main>
+      <SharedPassportPage
+        actionMessage={actionMessage}
+        exportTheme={exportTheme}
+        exportThemeId={exportThemeId}
+        exportThemeOptions={Object.entries(EXPORT_THEME_OPTIONS) as Array<[string, ExportThemeDefinition]>}
+        onCopyShareableLink={() => handleCopyShareableLink(sharedPassport)}
+        onExportAsImage={handleExportAsImage}
+        onExportInstagramStory={handleExportInstagramStory}
+        onExportThemeChange={(themeId) => setExportThemeId(themeId as ExportThemeId)}
+        onShareToInstagram={handleShareToInstagram}
+        passport={sharedPassport}
+        passportRef={(node) => {
+          passportRef.current = node;
+        }}
+        progressScale={progressScale}
+      />
     );
   }
 
@@ -2095,1030 +1441,115 @@ export default function App() {
               </div>
             </div>
 
-            <form className="mt-8 flex flex-col gap-5" onSubmit={handleSubmit}>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    sourceMode === "takeout"
-                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
-                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-                  }`}
-                  onClick={() => setSourceMode("takeout")}
-                  type="button"
-                >
-                  Google Takeout
-                </button>
-                <button
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    sourceMode === "unified-takeout"
-                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
-                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-                  }`}
-                  onClick={() => setSourceMode("unified-takeout")}
-                  type="button"
-                >
-                  YouTube + Music
-                </button>
-                <button
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    sourceMode === "lastfm"
-                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
-                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-                  }`}
-                  onClick={() => setSourceMode("lastfm")}
-                  type="button"
-                >
-                  Last.fm Live Mode
-                </button>
-                <button
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    sourceMode === "apple-music"
-                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
-                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-                  }`}
-                  onClick={() => setSourceMode("apple-music")}
-                  type="button"
-                >
-                  Apple Music
-                </button>
-              </div>
-
-              {sourceMode === "takeout" ? (
-                <div
-                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${
-                    isDragActive
-                      ? "border-[#D4A853] bg-[#D4A853]/10"
-                      : "border-[#1E293B] bg-[#111827]"
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <div className="mx-auto flex max-w-3xl flex-col gap-8">
-                    <div className="grid gap-6 lg:grid-cols-[1.35fr_0.95fr]">
-                      <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-                        <div className="mb-4 rounded-full border border-[#1E293B] bg-[#182234] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
-                          Drag and drop
-                        </div>
-                        <p className="text-xl font-semibold text-white">
-                          Drop watch-history.json here
-                        </p>
-                        <p className="mt-2 text-sm text-[#9CA3AF]">
-                          or browse for the export manually. You can also paste a YouTube Music profile link on the right.
-                        </p>
-                        <p className="mt-4 max-w-xl text-xs text-[#9CA3AF]">
-                          Google Takeout is still the source that unlocks play counts, streaks, timestamps, and heatmaps for YouTube Music.
-                        </p>
-                        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                          <label className="cursor-pointer rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.02] hover:bg-[#F0D080]">
-                            Choose file
-                            <input
-                              className="sr-only"
-                              type="file"
-                              accept=".json,application/json"
-                              onChange={handleFileChange}
-                            />
-                          </label>
-                          <button
-                            className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 text-sm font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                            onClick={() => setSourceMode("lastfm")}
-                            type="button"
-                          >
-                            Use Last.fm link instead
-                          </button>
-                        </div>
-                      </div>
-
-                        <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
-                        <label className="block text-sm font-semibold text-white">
-                          YouTube Music Profile Link
-                        </label>
-                        <input
-                          className="mt-3 w-full rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none transition placeholder:text-[#9CA3AF] focus:border-[#D4A853]"
-                          onChange={handleYoutubeMusicProfileUrlChange}
-                          placeholder="Paste a YouTube Music profile or channel link"
-                          type="text"
-                          value={youtubeMusicProfileUrl}
-                        />
-                        <p className="mt-3 text-sm text-[#9CA3AF]">
-                          Paste a public profile link like `https://music.youtube.com/@27_pranavchopdekar68` to build a lightweight public profile preview.
-                        </p>
-                        <p className="mt-3 text-xs text-[#9CA3AF]">
-                          Full analytics still require `watch-history.json` or Last.fm Live Mode because YouTube Music public profiles do not expose private listening history.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : sourceMode === "unified-takeout" ? (
-                <div
-                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${
-                    isDragActive
-                      ? "border-[#D4A853] bg-[#D4A853]/10"
-                      : "border-[#1E293B] bg-[#111827]"
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-                    <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-                      <div className="mb-4 rounded-full border border-[#1E293B] bg-[#182234] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
-                        Unified Music Mode
-                      </div>
-                      <p className="text-xl font-semibold text-white">
-                        Drop watch-history.json here
-                      </p>
-                      <p className="mt-2 text-sm text-[#9CA3AF]">
-                        This mode keeps YouTube Music plays and also pulls in music-like watches from the regular YouTube app.
-                      </p>
-                      <p className="mt-4 max-w-xl text-xs text-[#9CA3AF]">
-                        Auralize will filter out searches and non-music YouTube videos so the dashboard still stays focused on songs, remixes, lyric videos, and music videos.
-                      </p>
-                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                        <label className="cursor-pointer rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.02] hover:bg-[#F0D080]">
-                          Choose file
-                          <input
-                            className="sr-only"
-                            type="file"
-                            accept=".json,application/json"
-                            onChange={handleFileChange}
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
-                      <p className="text-sm font-semibold text-white">What gets included</p>
-                      <div className="mt-4 grid gap-3 text-sm text-[#9CA3AF]">
-                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                          Plays from YouTube Music
-                        </div>
-                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                          Music videos, lyric videos, official audios, remixes, and Topic uploads from regular YouTube
-                        </div>
-                        <div className="rounded-2xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-amber-100">
-                          Non-music YouTube content is excluded after metadata enrichment
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : sourceMode === "apple-music" ? (
-                <div
-                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${
-                    isDragActive
-                      ? "border-[#D4A853] bg-[#D4A853]/10"
-                      : "border-[#1E293B] bg-[#111827]"
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-                    <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-                      <div className="mb-4 rounded-full border border-[#1E293B] bg-[#182234] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
-                        Apple Music Mode
-                      </div>
-                      <p className="text-xl font-semibold text-white">
-                        Drop your Apple Music export here
-                      </p>
-                      <p className="mt-2 text-sm text-[#9CA3AF]">
-                        Upload an Apple Music Play Activity CSV or compatible JSON export to build the same dashboard, recap, and passport flow.
-                      </p>
-                      <p className="mt-4 max-w-xl text-xs text-[#9CA3AF]">
-                        Best results come from the Apple Music Play Activity export from privacy.apple.com because it includes timestamps and play durations.
-                      </p>
-                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                        <label className="cursor-pointer rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.02] hover:bg-[#F0D080]">
-                          Choose CSV or JSON
-                          <input
-                            className="sr-only"
-                            type="file"
-                            accept=".csv,.json,text/csv,application/json"
-                            onChange={handleFileChange}
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
-                      <p className="text-sm font-semibold text-white">Supported Apple Music exports</p>
-                      <div className="mt-4 grid gap-3 text-sm text-[#9CA3AF]">
-                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                          Apple Music Play Activity CSV
-                        </div>
-                        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                          compatible JSON exports with song, artist, timestamp, and duration fields
-                        </div>
-                        <div className="rounded-2xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-amber-100">
-                          Apple exports usually do not include artwork, so this mode uses a cleaner text-first presentation.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-6">
-                  <label className="block text-sm font-semibold text-white">
-                    Last.fm Username or Profile URL
-                  </label>
-                  <input
-                    className="mt-3 w-full rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none transition placeholder:text-[#9CA3AF] focus:border-[#D4A853]"
-                    onChange={(event) => setLastFmUsername(event.target.value)}
-                    placeholder="Enter a username or paste https://www.last.fm/user/..."
-                    type="text"
-                    value={lastFmUsername}
-                  />
-                  <p className="mt-3 text-sm text-[#9CA3AF]">
-                    Live Mode accepts either a plain username or a full Last.fm profile link, then pulls recent tracks, top artists, and top tracks into the same dashboard schema.
-                  </p>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex flex-col gap-2">
-                  {sourceMode === "takeout" || sourceMode === "unified-takeout" || sourceMode === "apple-music" ? (
-                    <>
-                      {file ? (
-                        <p className="text-sm text-[#9CA3AF]">
-                          Selected file: <span className="font-medium text-white">{file.name}</span>
-                        </p>
-                      ) : (
-                        <p className="text-sm text-[#9CA3AF]">No file selected yet.</p>
-                      )}
-                      {sourceMode === "takeout" && youtubeMusicProfileUrl ? (
-                        <p className="text-sm text-[#9CA3AF]">
-                          Profile link: <span className="break-all text-white">{youtubeMusicProfileUrl}</span>
-                        </p>
-                      ) : null}
-                      {sourceMode === "takeout" ? (
-                        <p className="text-xs text-[#9CA3AF]">
-                          The button uses your file if one is selected. Otherwise, it uses the YouTube Music profile link.
-                        </p>
-                      ) : sourceMode === "apple-music" ? (
-                        <p className="text-xs text-[#9CA3AF]">
-                          Apple Music mode builds the dashboard from a CSV or JSON export file.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-[#9CA3AF]">
-                          Unified mode uses the same Takeout file, but expands the analysis to music plays from both YouTube Music and the main YouTube app.
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-[#9CA3AF]">
-                      Last.fm user: <span className="text-white">{lastFmUsername || "not set"}</span>
-                    </p>
-                  )}
-
-                  {isUploading ? <LoadingSpinner /> : null}
-                  {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-                  {actionMessage ? (
-                    <p className="text-sm text-[#F0D080]">{actionMessage}</p>
-                  ) : null}
-                </div>
-
-                <button
-                  className="rounded-full border border-[#D4A853] bg-[#D4A853] px-6 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080] disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-700 disabled:text-slate-300"
-                  disabled={isUploading}
-                  type="submit"
-                >
-                  {isUploading
-                    ? "Loading..."
-                    : sourceMode === "takeout" || sourceMode === "unified-takeout" || sourceMode === "apple-music"
-                      ? "Build dashboard or preview"
-                      : "Start Live Mode"}
-                </button>
-              </div>
-            </form>
+            <SourceStudio
+              actionMessage={actionMessage}
+              error={error}
+              fileName={file?.name ?? null}
+              isDragActive={isDragActive}
+              isUploading={isUploading}
+              lastFmUsername={lastFmUsername}
+              loadingIndicator={<LoadingSpinner />}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onFileChange={handleFileChange}
+              onLastFmUsernameChange={(event) => setLastFmUsername(event.target.value)}
+              onSourceModeChange={setSourceMode}
+              onSubmit={handleSubmit}
+              onYoutubeMusicProfileUrlChange={handleYoutubeMusicProfileUrlChange}
+              sourceMode={sourceMode}
+              youtubeMusicProfileUrl={youtubeMusicProfileUrl}
+            />
           </div>
         </motion.section>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Unique Songs</p>
-            <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">{uniqueSongs}</p>
-          </div>
-          <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Total Plays</p>
-            <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">{totalPlays}</p>
-          </div>
-          <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
-              {dashboard?.source === "lastfm"
-                ? "Live User"
-                : isYoutubeProfileMode
-                  ? "Profile Handle"
-                  : "Parsed Tracks"}
-            </p>
-            <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">
-              {dashboard?.source === "lastfm"
-                ? dashboard.username ?? "-"
-                : isYoutubeProfileMode
-                  ? `@${dashboard?.username ?? "-"}`
-                  : parsedHistory.length}
-            </p>
-          </div>
+        <DashboardWorkspace
+          achievementBadges={achievementBadges}
+          artistOptions={artistOptions}
+          compareTimeframe={compareTimeframe}
+          comparisonGenreBreakdown={comparisonGenreBreakdown}
+          comparisonStats={comparisonStats}
+          dashboard={dashboard}
+          dashboardDensity={dashboardDensity}
+          dashboardTheme={dashboardTheme}
+          filteredEntries={filteredEntries}
+          genreBreakdown={genreBreakdown}
+          genreOptions={genreOptions}
+          handleDeleteSession={handleDeleteSession}
+          handleExportPlaylist={handleExportPlaylist}
+          handleRestoreSession={handleRestoreSession}
+          handleSaveSession={handleSaveSession}
+          heatmapEntries={heatmapEntries}
+          heroHours={heroHours}
+          isSimpleDashboard={isSimpleDashboard}
+          isUploading={isUploading}
+          isYoutubeProfileMode={isYoutubeProfileMode}
+          memoryLane={memoryLane}
+          moodOptions={moodOptions}
+          moodTimeline={moodTimeline}
+          parsedHistoryLength={parsedHistory.length}
+          personaProfile={personaProfile}
+          recapTheme={recapTheme}
+          recapVariant={recapVariant}
+          savedSessions={savedSessions}
+          scrollToSection={scrollToSection}
+          searchTerm={searchTerm}
+          sectionRefs={sectionRefs}
+          selectedArtist={selectedArtist}
+          selectedGenre={selectedGenre}
+          selectedMood={selectedMood}
+          selectedPlaylist={selectedPlaylist}
+          setActionMessage={setActionMessage}
+          setCompareTimeframe={setCompareTimeframe}
+          setDashboardDensity={setDashboardDensity}
+          setIsRecapOpen={setIsRecapOpen}
+          setRecapTheme={setRecapTheme}
+          setRecapVariant={setRecapVariant}
+          setSearchTerm={setSearchTerm}
+          setSelectedArtist={setSelectedArtist}
+          setSelectedGenre={setSelectedGenre}
+          setSelectedMood={setSelectedMood}
+          setTimeframe={setTimeframe}
+          shouldShowAdvancedInsights={Boolean(shouldShowAdvancedInsights)}
+          smartInsights={smartInsights}
+          stats={stats}
+          tasteEvolution={tasteEvolution}
+          timeframe={timeframe}
+          topArtists={topArtists}
+          topSongs={topSongs}
+          totalPlays={totalPlays}
+          uniqueSongs={uniqueSongs}
+          uploadQuality={uploadQuality}
+        />
+
+
+        <div ref={(node) => { sectionRefs.current.share = node; }}>
+          <ShareStudio
+            actionMessage={actionMessage}
+            dashboard={dashboard}
+            exportTheme={exportTheme}
+            exportThemeId={exportThemeId}
+            exportThemeOptions={
+              Object.entries(EXPORT_THEME_OPTIONS) as Array<[string, ExportThemeDefinition]>
+            }
+            isYoutubeProfileMode={isYoutubeProfileMode}
+            onCopyPublicProfileLink={handleCopyPublicProfileLink}
+            onCopyShareableLink={handleCopyShareableLink}
+            onExportAsImage={handleExportAsImage}
+            onExportDashboardJson={handleExportDashboardJson}
+            onExportInstagramStory={handleExportInstagramStory}
+            onExportThemeChange={(themeId) => setExportThemeId(themeId as ExportThemeId)}
+            onShareToInstagram={handleShareToInstagram}
+            passportData={passportData}
+            passportRef={(node) => {
+              passportRef.current = node;
+            }}
+            publicProfilePayload={publicProfilePayload}
+            statsPresent={Boolean(stats)}
+            youtubeMusicProfileUrl={youtubeMusicProfileUrl}
+          />
         </div>
 
-        {stats && !isYoutubeProfileMode ? (
-          <Section
-            title="Timeframe"
-            subtitle="Choose the listening window you want this dashboard and recap to analyze."
-          >
-            <div className="flex flex-wrap gap-3">
-              {(Object.keys(TIMEFRAME_LABELS) as TimeframeOption[]).map((option) => (
-                <button
-                  key={option}
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    timeframe === option
-                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
-                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-                  }`}
-                  onClick={() => setTimeframe(option)}
-                  type="button"
-                >
-                  {TIMEFRAME_LABELS[option]}
-                </button>
-              ))}
-            </div>
-          </Section>
-        ) : null}
-
-        {uploadQuality?.warnings.length ? (
-          <Section
-            title="Data Quality"
-            subtitle="Auralize detected a few signals worth keeping in mind while reading this dashboard."
-          >
-            <div className="grid gap-3">
-              {uploadQuality.warnings.map((warning) => (
-                <div
-                  key={warning}
-                  className="rounded-[1.4rem] border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-sm text-amber-100"
-                >
-                  {warning}
-                </div>
-              ))}
-            </div>
-          </Section>
-        ) : null}
-
-        {stats && !isYoutubeProfileMode ? (
-          <Section
-            title="Dashboard Mode"
-            subtitle="Keep the page focused with the core story, or open the full analytics stack when you want the deeper read."
-          >
-            <div className="flex flex-wrap gap-3">
-              {(["simple", "full"] as DashboardDensity[]).map((mode) => (
-                <button
-                  key={mode}
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    dashboardDensity === mode
-                      ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
-                      : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-                  }`}
-                  onClick={() => setDashboardDensity(mode)}
-                  type="button"
-                >
-                  {mode === "simple" ? "Simple view" : "Full view"}
-                </button>
-              ))}
-              <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
-                {dashboardDensity === "simple"
-                  ? "Core story only"
-                  : "Deeper analytics unlocked"}
-              </span>
-            </div>
-          </Section>
-        ) : null}
-
-        {stats && !isYoutubeProfileMode ? (
-          <Section
-            title="Search And Filters"
-            subtitle="Slice the dashboard by song search, artist, genre, or mood and let the rest of the page update with it."
-          >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <label className="grid gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Search</span>
-                <input
-                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none placeholder:text-[#9CA3AF] focus:border-[#67C3C0]"
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Song, artist, tag"
-                  type="text"
-                  value={searchTerm}
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Genre</span>
-                <select
-                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#67C3C0]"
-                  onChange={(event) => setSelectedGenre(event.target.value)}
-                  value={selectedGenre}
-                >
-                  <option value="">All genres</option>
-                  {genreOptions.map((genre) => (
-                    <option key={genre} value={genre}>
-                      {genre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Artist</span>
-                <select
-                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#67C3C0]"
-                  onChange={(event) => setSelectedArtist(event.target.value)}
-                  value={selectedArtist}
-                >
-                  <option value="">All artists</option>
-                  {artistOptions.map((artist) => (
-                    <option key={artist} value={artist}>
-                      {artist}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Mood</span>
-                <select
-                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#67C3C0]"
-                  onChange={(event) => setSelectedMood(event.target.value)}
-                  value={selectedMood}
-                >
-                  <option value="">All moods</option>
-                  {moodOptions.map((mood) => (
-                    <option key={mood} value={mood}>
-                      {mood}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <span className="rounded-full border border-[#1E293B] bg-[#0F172A] px-4 py-2 text-sm text-[#9CA3AF]">
-                {filteredEntries.length} songs in current filtered view
-              </span>
-              <button
-                className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedGenre("");
-                  setSelectedArtist("");
-                  setSelectedMood("");
-                }}
-                type="button"
-              >
-                Clear filters
-              </button>
-            </div>
-          </Section>
-        ) : null}
-
-        {stats && !isYoutubeProfileMode ? (
-          <Section
-            title="Compare View"
-            subtitle="Compare the current dashboard window against another timeframe from the same listening archive."
-          >
-            <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="grid gap-3">
-                <label className="grid gap-2">
-                  <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                    Comparison timeframe
-                  </span>
-                  <select
-                    className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
-                    onChange={(event) => setCompareTimeframe(event.target.value as TimeframeOption)}
-                    value={compareTimeframe}
-                  >
-                    {TIMEFRAME_COMPARE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {TIMEFRAME_LABELS[option]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Current window</p>
-                  <p className="mt-3 text-2xl font-semibold text-white">{TIMEFRAME_LABELS[timeframe]}</p>
-                  <p className="mt-2 text-sm text-[#9CA3AF]">
-                    {stats.rawEnrichedHistory.length} songs, {formatHours(stats.totalListeningMinutes)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Listening time</p>
-                  <p className="mt-3 text-2xl font-semibold text-white">
-                    {comparisonStats ? formatHours(comparisonStats.totalListeningMinutes) : "0.0 hrs"}
-                  </p>
-                  <p className="mt-2 text-sm text-[#9CA3AF]">
-                    {comparisonStats
-                      ? `${Math.round(stats.totalListeningMinutes - comparisonStats.totalListeningMinutes)} min delta vs current`
-                      : "No comparable data yet"}
-                  </p>
-                </div>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top artist</p>
-                  <p className="mt-3 text-xl font-semibold text-white">
-                    {comparisonStats?.topArtists[0]?.artist ?? "No data"}
-                  </p>
-                  <p className="mt-2 text-sm text-[#9CA3AF]">
-                    Current: {topArtists[0]?.artist ?? "No data"}
-                  </p>
-                </div>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                  <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top genre</p>
-                  <p className="mt-3 text-xl font-semibold text-white">
-                    {comparisonGenreBreakdown[0]?.genre ?? "Other"}
-                  </p>
-                  <p className="mt-2 text-sm text-[#9CA3AF]">
-                    Current: {genreBreakdown[0]?.genre ?? "Other"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Section>
-        ) : null}
-
-        {stats ? (
-          <Section
-            title="Saved Sessions"
-            subtitle="Save snapshots of your current dashboard and restore them later without re-uploading."
-          >
-            <div className="flex flex-wrap gap-3">
-              <button
-                className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                onClick={handleSaveSession}
-                type="button"
-              >
-                Save current session
-              </button>
-              <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
-                {savedSessions.length} saved locally
-              </span>
-            </div>
-            {savedSessions.length ? (
-              <div className="mt-5 grid gap-3">
-                {savedSessions.map((session) => (
-                  <article
-                    key={session.id}
-                    className="flex flex-col gap-4 rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-4 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">{session.name}</h3>
-                      <p className="mt-1 text-sm text-[#9CA3AF]">
-                        {session.sourceLabel} · {TIMEFRAME_LABELS[session.timeframe]} · {new Date(session.savedAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                        onClick={() => handleRestoreSession(session)}
-                        type="button"
-                      >
-                        Restore
-                      </button>
-                      <button
-                        className="rounded-full border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/20"
-                        onClick={() => handleDeleteSession(session.id)}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-5 text-sm text-[#9CA3AF]">
-                No saved sessions yet. Save one after generating a dashboard to build your own listening archive.
-              </p>
-            )}
-          </Section>
-        ) : null}
-
-        {stats && !isYoutubeProfileMode ? (
-          <div
-            className="sticky top-4 z-20 rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] p-3 backdrop-blur-xl"
-            style={{ backgroundColor: "color-mix(in srgb, var(--panel-bg,#111827) 92%, transparent)" }}
-          >
-            <div className="flex flex-wrap gap-3">
-              {[
-                ["overview", "Overview"],
-                ["habits", "Habits"],
-                ["share", "Share"],
-                ...(dashboardDensity === "full" ? [["deep-dive", "Deep Dive"]] : [])
-              ].map(([sectionId, label]) => (
-                <button
-                  key={sectionId}
-                  className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                  onClick={() => scrollToSection(sectionId)}
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {stats && !isYoutubeProfileMode ? (
-          <Section
-            title="Instant Recap"
-            subtitle="Turn this listening profile into a cinematic, story-style recap whenever you want."
-          >
-            <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-              <div>
-                <p className="max-w-2xl text-base text-[#9CA3AF]">
-                  Launch a full-screen recap built from your total listening time, top song, artist orbit, genre DNA, mood signature, peak listening window, and passport finale.
-                </p>
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-2">
-                    <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                      Recap Variant
-                    </span>
-                    <select
-                      className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
-                      onChange={(event) => setRecapVariant(event.target.value as RecapVariant)}
-                      value={recapVariant}
-                    >
-                      {(Object.keys(RECAP_VARIANT_LABELS) as RecapVariant[]).map((variant) => (
-                        <option key={variant} value={variant}>
-                          {RECAP_VARIANT_LABELS[variant]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                      Theme Pack
-                    </span>
-                    <select
-                      className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
-                      onChange={(event) => setRecapTheme(event.target.value as RecapThemePack)}
-                      value={recapTheme}
-                    >
-                      <option value="gold-noir">Gold Noir</option>
-                      <option value="violet-dusk">Violet Dusk</option>
-                      <option value="teal-afterglow">Teal Afterglow</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                    onClick={() => setIsRecapOpen(true)}
-                    type="button"
-                  >
-                    Launch recap
-                  </button>
-                  <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
-                    variant-aware chapters
-                  </span>
-                  <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
-                    embedded audio mode
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-4">
-                  <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Open</p>
-                  <p className="mt-2 text-sm font-semibold text-white">Listening scale</p>
-                </div>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-4">
-                  <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Middle</p>
-                  <p className="mt-2 text-sm font-semibold text-white">Artist web and taste arcs</p>
-                </div>
-                <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-4">
-                  <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Finale</p>
-                  <p className="mt-2 text-sm font-semibold text-white">Passport and finale card</p>
-                </div>
-              </div>
-            </div>
-          </Section>
-        ) : null}
-
-        <div ref={(node) => { sectionRefs.current.share = node; }} className="flex flex-col gap-6">
-          {stats && !isYoutubeProfileMode ? (
-            <Section
-                title="Export Studio"
-                subtitle="Package the current view as a profile link, PNG, or structured file."
-              >
-                <div className="grid gap-3">
-                  <button
-                    className="rounded-[1.4rem] border border-[#E4A94B] bg-[#E4A94B] px-5 py-4 text-left font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                    onClick={() => void handleExportAsImage()}
-                    type="button"
-                  >
-                    Export passport PNG
-                  </button>
-                  <button
-                    className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                    onClick={() => passportData && void handleCopyShareableLink(passportData)}
-                    type="button"
-                  >
-                    Copy passport card link
-                  </button>
-                  <button
-                    className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                    onClick={() => publicProfilePayload && void handleCopyPublicProfileLink(publicProfilePayload)}
-                    type="button"
-                  >
-                    Copy public profile link
-                  </button>
-                  <button
-                    className="rounded-[1.4rem] border border-[#1E293B] bg-[#111827] px-5 py-4 text-left font-semibold text-white transition hover:border-[#67C3C0] hover:bg-[#182234]"
-                    onClick={() => publicProfilePayload && handleExportDashboardJson(publicProfilePayload)}
-                    type="button"
-                  >
-                    Export dashboard summary JSON
-                  </button>
-                  {actionMessage ? (
-                    <p className="pt-2 text-sm text-[#9CA3AF]">{actionMessage}</p>
-                  ) : null}
-                </div>
-              </Section>
-          ) : null}
-
-          {passportData ? (
-            <Section
-              title="Music Passport"
-              subtitle="A shareable summary card you can export as a PNG or copy as a read-only link."
-            >
-              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-                <div className="overflow-x-auto">
-                <div
-                  ref={passportRef}
-                  className="w-fit"
-                  style={{ background: exportTheme.passportTheme.shellBg }}
-                >
-                  <Suspense fallback={<ChartSkeleton heightClass="h-[520px]" />}>
-                    <MusicPassportCard data={passportData} theme={exportTheme.passportTheme} />
-                  </Suspense>
-                </div>
-                </div>
-
-                <div className="flex w-full max-w-sm flex-col gap-3 xl:pt-3">
-                  <label className="grid gap-2">
-                    <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                      Export Theme
-                    </span>
-                    <select
-                      className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
-                      onChange={(event) => setExportThemeId(event.target.value as ExportThemeId)}
-                      value={exportThemeId}
-                    >
-                      {(Object.entries(EXPORT_THEME_OPTIONS) as Array<[ExportThemeId, ExportThemeDefinition]>).map(
-                        ([themeId, theme]) => (
-                          <option key={themeId} value={themeId}>
-                            {theme.label}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-                  <p className="text-sm text-[#9CA3AF]">
-                    Pick from 10 export themes. The preview updates before you download or share.
-                  </p>
-                  <button
-                    className="rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[#F0D080]"
-                    onClick={() => void handleExportAsImage()}
-                    type="button"
-                  >
-                    Export as Image
-                  </button>
-                  <button
-                    className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                    onClick={() => void handleCopyShareableLink(passportData)}
-                    type="button"
-                  >
-                    Copy Shareable Link
-                  </button>
-                  <button
-                    className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                    onClick={() => void handleShareToInstagram()}
-                    type="button"
-                  >
-                    Share to Instagram
-                  </button>
-                  <button
-                    className="rounded-full border border-[#1E293B] bg-[#111827] px-5 py-3 font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                    onClick={() => void handleExportInstagramStory()}
-                    type="button"
-                  >
-                    Export Instagram Story
-                  </button>
-                  <p className="text-sm text-[#9CA3AF]">
-                    Instagram sharing uses your device share sheet when supported. Otherwise, Auralize downloads a story-ready PNG you can upload manually.
-                  </p>
-                </div>
-              </div>
-            </Section>
-          ) : null}
-        </div>
-
-        {isYoutubeProfileMode ? (
-          <Section
-            title="Public Profile Preview"
-            subtitle="This view comes from a public YouTube Music profile link, so it can only show public metadata rather than private listening history."
-          >
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-6">
-                <div className="flex items-center gap-4">
-                  {dashboard?.profileSummary?.thumbnail ? (
-                    <img
-                      src={dashboard.profileSummary.thumbnail}
-                      alt={dashboard.profileSummary.name}
-                      className="h-20 w-20 rounded-3xl object-cover"
-                    />
-                  ) : (
-                    <div className="h-20 w-20 rounded-3xl bg-[#D4A853]/10" />
-                  )}
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
-                      YouTube Music
-                    </p>
-                    <h2 className="mt-2 text-2xl font-semibold text-white">
-                      {dashboard?.profileSummary?.name ?? "Unknown profile"}
-                    </h2>
-                    <p className="mt-1 text-sm text-[#9CA3AF]">
-                      @{dashboard?.profileSummary?.handle ?? dashboard?.username ?? "unknown"}
-                    </p>
-                  </div>
-                </div>
-
-                <a
-                  className="mt-6 inline-flex rounded-full border border-[#1E293B] bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:border-[#F0D080] hover:bg-[#182234]"
-                  href={dashboard?.profileSummary?.url ?? youtubeMusicProfileUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Open profile
-                </a>
-              </div>
-
-              <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-6">
-                <p className="text-sm uppercase tracking-[0.3em] text-[#F59E0B]">
-                  What this can show
-                </p>
-                <div className="mt-4 grid gap-3 text-sm text-[#9CA3AF]">
-                  <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                    Public profile identity like handle, page title, and artwork when available
-                  </div>
-                  <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                    A quick preview path when you only have a `music.youtube.com/@...` link
-                  </div>
-                  <div className="rounded-2xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-amber-100">
-                    Not available from a public profile link: private play counts, top songs, listening streaks, timestamps, and heatmaps
-                  </div>
-                </div>
-
-                <p className="mt-5 text-sm text-[#9CA3AF]">
-                  For the full dashboard and passport, upload `watch-history.json` or switch to Last.fm Live Mode.
-                </p>
-              </div>
-            </div>
-          </Section>
-        ) : null}
-
-        {isUploading ? (
-          <>
-            <Section title="Your Music Profile" subtitle="Crunching your listening summary.">
-              <ChartSkeleton heightClass="h-[220px]" />
-            </Section>
-            <Section title="Top Songs" subtitle="Preparing your top tracks.">
-              <ChartSkeleton heightClass="h-[420px]" />
-            </Section>
-            <Section title="Top Artists" subtitle="Preparing your artist rankings.">
-              <ChartSkeleton heightClass="h-[340px]" />
-            </Section>
-            <div className="grid gap-6 xl:grid-cols-2">
-              <Section title="Genre DNA" subtitle="Classifying genres.">
-                <ChartSkeleton />
-              </Section>
-              <Section title="Mood Timeline" subtitle="Mapping moods by time of day.">
-                <ChartSkeleton />
-              </Section>
-            </div>
-            <Section title="Listening Heatmap" subtitle="Building a weekly heatmap.">
-              <ChartSkeleton heightClass="h-[280px]" />
-            </Section>
-          </>
-        ) : stats && !isYoutubeProfileMode ? (
-          <>
-            <div ref={(node) => { sectionRefs.current.overview = node; }}>
-              <Section
-                title="Your Music Profile"
-                subtitle="A snapshot of how much time you have spent inside your listening archive."
-              >
-                <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-sm uppercase tracking-[0.3em] text-[#F59E0B]">
-                        Total listening time
-                      </p>
-                      {dashboard?.source === "lastfm" ? (
-                        <span className="rounded-full border border-[#D4A853]/20 bg-[#D4A853]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#F0D080]">
-                          Live Mode
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-3 text-4xl font-semibold text-white md:text-6xl">
-                      {heroHours}
-                    </p>
-                    <p className="mt-4 max-w-2xl text-sm text-[#9CA3AF] md:text-base">
-                      Based on source data currently loaded into the dashboard.
-                    </p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
-                      <p className="text-sm text-[#9CA3AF]">Top song</p>
-                      <p className="mt-2 text-lg font-semibold text-white">
-                        {topSongs[0]?.title ?? "No data yet"}
-                      </p>
-                    </div>
-                    <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#111827] p-5">
-                      <p className="text-sm text-[#9CA3AF]">Top artist</p>
-                      <p className="mt-2 text-lg font-semibold text-white">
-                        {topArtists[0]?.artist ?? "No data yet"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Section>
-            </div>
-
-            <div ref={(node) => { sectionRefs.current.habits = node; }} className="flex flex-col gap-6">
-              <Suspense
-                fallback={
-                  <>
-                    <Section title="Top Songs" subtitle="Preparing your top tracks.">
-                      <ChartSkeleton heightClass="h-[420px]" />
-                    </Section>
-                    <Section title="Top Artists" subtitle="Preparing your artist rankings.">
-                      <ChartSkeleton heightClass="h-[340px]" />
-                    </Section>
-                    <div className="grid gap-6 xl:grid-cols-2">
-                      <Section title="Genre DNA" subtitle="Classifying genres.">
-                        <ChartSkeleton />
-                      </Section>
-                      <Section title="Listening Habits" subtitle="Mapping your strongest patterns.">
-                        <ChartSkeleton />
-                      </Section>
-                    </div>
-                  </>
-                }
-              >
-                <DashboardOverviewSections
-                  topSongs={topSongs}
-                  topArtists={topArtists}
-                  genreBreakdown={genreBreakdown}
-                  moodTimeline={moodTimeline}
-                  heatmapEntries={heatmapEntries}
-                  statsEntries={stats.rawEnrichedHistory}
-                  isSimpleDashboard={isSimpleDashboard}
-                  dashboardTheme={dashboardTheme}
-                />
-              </Suspense>
-            </div>
-
-            {shouldShowAdvancedInsights ? (
-              <div ref={(node) => { sectionRefs.current["deep-dive"] = node; }}>
-                <Suspense
-                  fallback={
-                    <Section title="Loading Insights" subtitle="Preparing the advanced dashboard layer.">
-                      <ChartSkeleton heightClass="h-[260px]" />
-                    </Section>
-                  }
-                >
-                  <DashboardAdvancedSections
-                    selectedPlaylist={selectedPlaylist}
-                    onExportPlaylist={handleExportPlaylist}
-                    onActionMessage={setActionMessage}
-                    personaProfile={personaProfile}
-                    smartInsights={smartInsights}
-                    tasteEvolution={tasteEvolution}
-                    memoryLane={memoryLane}
-                    achievementBadges={achievementBadges}
-                    recentHistory={stats.rawEnrichedHistory}
-                  />
-                </Suspense>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <Section
-            title="Dashboard Preview"
-            subtitle="Upload a file or enter a Last.fm username to unlock your dashboard and passport."
-          >
-            <div className="rounded-[1.75rem] border border-dashed border-[#1E293B] bg-[#111827] px-6 py-16 text-center text-[#9CA3AF]">
-              Your dashboard and shareable passport will appear here after data loads successfully.
-            </div>
-          </Section>
-        )}
       </motion.div>
     </main>
   );
