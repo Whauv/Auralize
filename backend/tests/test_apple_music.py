@@ -8,10 +8,10 @@ from app.services.apple_music import parse_apple_music_export
 class AppleMusicParserTests(unittest.TestCase):
     def test_parse_csv_export_aggregates_song_plays(self) -> None:
         raw_csv = (
-            "Song Name,Artist Name,Event Start Timestamp,Play Duration Milliseconds\n"
-            "Track One,Artist One,2026-01-01T12:00:00Z,180000\n"
-            "Track One,Artist One,2026-01-02T12:00:00Z,180000\n"
-        ).encode("utf-8")
+            b"Song Name,Artist Name,Event Start Timestamp,Play Duration Milliseconds\n"
+            b"Track One,Artist One,2026-01-01T12:00:00Z,180000\n"
+            b"Track One,Artist One,2026-01-02T12:00:00Z,180000\n"
+        )
 
         enriched_history, quality = parse_apple_music_export(raw_csv)
 

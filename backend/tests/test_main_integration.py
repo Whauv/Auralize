@@ -1,22 +1,11 @@
 from __future__ import annotations
 
-import json
-import sys
-import types
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from fastapi.testclient import TestClient
-
-simplejson_stub = types.ModuleType("simplejson")
-simplejson_stub.JSONDecodeError = json.JSONDecodeError
-sys.modules.setdefault("simplejson", simplejson_stub)
-dotenv_stub = types.ModuleType("dotenv")
-dotenv_stub.load_dotenv = lambda *args, **kwargs: None
-sys.modules.setdefault("dotenv", dotenv_stub)
-
 from app.main import app
 from app.services.response_cache import response_cache
+from fastapi.testclient import TestClient
 
 
 class MainIntegrationTests(unittest.TestCase):
@@ -63,8 +52,14 @@ class MainIntegrationTests(unittest.TestCase):
         }
 
         with (
-            patch("app.main.parse_upload_file", new=AsyncMock(return_value=parse_result)) as parse_mock,
-            patch("app.main.build_takeout_analysis_response", return_value=built_response) as build_mock,
+            patch(
+                "app.main.parse_upload_file",
+                new=AsyncMock(return_value=parse_result),
+            ) as parse_mock,
+            patch(
+                "app.main.build_takeout_analysis_response",
+                return_value=built_response,
+            ) as build_mock,
         ):
             response = self.client.post(
                 "/api/analyze",
@@ -99,7 +94,13 @@ class MainIntegrationTests(unittest.TestCase):
     def test_upload_rejects_too_large_file(self) -> None:
         response = self.client.post(
             "/api/upload",
-            files={"file": ("watch-history.json", b"x" * (10 * 1024 * 1024 + 1), "application/json")},
+            files={
+                "file": (
+                    "watch-history.json",
+                    b"x" * (10 * 1024 * 1024 + 1),
+                    "application/json",
+                )
+            },
         )
 
         self.assertEqual(response.status_code, 413)

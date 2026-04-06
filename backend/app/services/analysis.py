@@ -4,13 +4,13 @@ import csv
 import json
 from typing import Any
 
-from fastapi import HTTPException, UploadFile
-
+import requests
 from app.services.apple_music import parse_apple_music_export
 from app.services.parser import parse_unified_watch_history, parse_watch_history
 from app.services.response_cache import response_cache, sha256_digest
 from app.services.stats import build_dashboard_payload, merge_history_with_enrichment
 from app.services.youtube_api import enrich_with_youtube_api, is_music_video
+from fastapi import HTTPException, UploadFile
 
 ANALYSIS_CACHE_TTL = 60 * 60 * 12
 ENRICHED_HISTORY_CACHE_TTL = 60 * 60 * 6
@@ -208,7 +208,10 @@ async def parse_apple_music_upload_file(
         "application/vnd.ms-excel",
     }
     if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="Please upload an Apple Music CSV or JSON file.")
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload an Apple Music CSV or JSON file.",
+        )
 
     raw_content = await file.read()
     if not raw_content:
@@ -238,8 +241,6 @@ async def parse_apple_music_upload_file(
 
 
 def load_enriched_history(parsed_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    import requests
-
     content_key = sha256_digest(json.dumps(parsed_history, sort_keys=True))
     cache_key = f"enriched-history:{content_key}"
     cached = response_cache.get(cache_key)

@@ -190,7 +190,8 @@ async def get_genre_breakdown(file: UploadFile = UPLOAD_FILE) -> list[dict[str, 
         return cached
 
     enriched_history = load_enriched_history(parsed_history)
-    return response_cache.set(cache_key, build_genre_breakdown(enriched_history), ANALYSIS_CACHE_TTL)
+    breakdown = build_genre_breakdown(enriched_history)
+    return response_cache.set(cache_key, breakdown, ANALYSIS_CACHE_TTL)
 
 
 @app.post("/api/genre-breakdown-unified")
@@ -202,7 +203,8 @@ async def get_unified_genre_breakdown(file: UploadFile = UPLOAD_FILE) -> list[di
         return cached
 
     enriched_history = load_enriched_history(parsed_history)
-    return response_cache.set(cache_key, build_genre_breakdown(enriched_history), ANALYSIS_CACHE_TTL)
+    breakdown = build_genre_breakdown(enriched_history)
+    return response_cache.set(cache_key, breakdown, ANALYSIS_CACHE_TTL)
 
 
 @app.post("/api/mood-timeline")
