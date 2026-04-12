@@ -1,0 +1,171 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  analyzeAppleMusic,
+  analyzeLastFm,
+  analyzeTakeout,
+  analyzeUnifiedTakeout,
+  analyzeYoutubeProfile,
+} from "./sourceAnalysis";
+import type { DashboardResponse, DashboardUploadResponse } from "./types";
+
+const utilsMocks = vi.hoisted(() => ({
+  getCachedAnalysis: vi.fn(),
+  setCachedAnalysis: vi.fn(),
+  postFile: vi.fn(),
+  postJson: vi.fn(),
+  buildFileAnalysisCacheKey: vi.fn((_source: string, _file: File) => "file-cache-key"),
+  buildJsonAnalysisCacheKey: vi.fn((_source: string, _value: string) => "json-cache-key"),
+  parseYoutubeMusicProfileUrl: vi.fn((value: string) => value.trim() || null),
+  parseLastFmUsername: vi.fn((value: string) => value.trim() || null),
+}));
+
+vi.mock("./utils", () => ({
+  buildFileAnalysisCacheKey: utilsMocks.buildFileAnalysisCacheKey,
+  buildJsonAnalysisCacheKey: utilsMocks.buildJsonAnalysisCacheKey,
+  getCachedAnalysis: utilsMocks.getCachedAnalysis,
+  parseLastFmUsername: utilsMocks.parseLastFmUsername,
+  parseYoutubeMusicProfileUrl: utilsMocks.parseYoutubeMusicProfileUrl,
+  postFile: utilsMocks.postFile,
+  postJson: utilsMocks.postJson,
+  setCachedAnalysis: utilsMocks.setCachedAnalysis,
+}));
+
+describe("source analysis helpers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    utilsMocks.getCachedAnalysis.mockReturnValue(null);
+  });
+
+  it("returns cached YouTube profile analysis when available", async () => {
+    const payload: DashboardResponse = {
+      source: "youtube-profile",
+      username: "handle",
+      stats: {
+        topSongs: [],
+        topArtists: [],
+        totalListeningMinutes: 0,
+        rawEnrichedHistory: [],
+      },
+      genreBreakdown: [],
+      moodTimeline: [],
+      profileSummary: null,
+    };
+    utilsMocks.getCachedAnalysis.mockReturnValue(payload);
+
+    const result = await analyzeYoutubeProfile("https://music.youtube.com/@handle");
+
+    expect(result).toEqual({
+      payload,
+      message: "Loaded cached public profile preview.",
+    });
+    expect(utilsMocks.postJson).not.toHaveBeenCalled();
+  });
+
+  it("posts a takeout file when no cached result exists", async () => {
+    const payload: DashboardUploadResponse = {
+      entries: [],
+      quality: {
+        totalEntries: 1,
+        usableEntries: 1,
+        searchEntries: 0,
+        youtubeMusicEntries: 1,
+        warnings: [],
+      },
+      dashboard: {
+        source: "takeout",
+        username: null,
+        stats: {
+          topSongs: [],
+          topArtists: [],
+          totalListeningMinutes: 0,
+          rawEnrichedHistory: [],
+        },
+        genreBreakdown: [],
+        moodTimeline: [],
+        profileSummary: null,
+      },
+    };
+    const file = new File(["[]"], "watch-history.json", { type: "application/json" });
+    utilsMocks.postFile.mockResolvedValue(payload);
+
+    const result = await analyzeTakeout(file);
+
+    expect(result).toEqual({ payload });
+    expect(utilsMocks.postFile).toHaveBeenCalledWith("/analyze", file);
+    expect(utilsMocks.setCachedAnalysis).toHaveBeenCalledWith(
+      "file-cache-key",
+      "takeout",
+      payload,
+    );
+  });
+
+  it("supports unified, Apple Music, and Last.fm analysis flows", async () => {
+    const uploadPayload = {
+      entries: [],
+      quality: {
+        totalEntries: 2,
+        usableEntries: 2,
+        searchEntries: 0,
+        youtubeMusicEntries: 0,
+        warnings: [],
+      },
+      dashboard: {
+        source: "apple-music",
+        username: null,
+        stats: {
+          topSongs: [],
+          topArtists: [],
+          totalListeningMinutes: 0,
+          rawEnrichedHistory: [],
+        },
+        genreBreakdown: [],
+        moodTimeline: [],
+        profileSummary: null,
+      },
+    } satisfies DashboardUploadResponse;
+    const livePayload = {
+      source: "lastfm",
+      username: "prana",
+      stats: {
+        topSongs: [],
+        topArtists: [],
+        totalListeningMinutes: 0,
+        rawEnrichedHistory: [],
+      },
+      genreBreakdown: [],
+      moodTimeline: [],
+      profileSummary: null,
+    } satisfies DashboardResponse;
+    utilsMocks.postFile.mockResolvedValue(uploadPayload);
+    utilsMocks.postJson.mockResolvedValue(livePayload);
+    const file = new File(["artist,title"], "apple.csv", { type: "text/csv" });
+
+    await expect(analyzeUnifiedTakeout(file)).resolves.toEqual({ payload: uploadPayload });
+    await expect(analyzeAppleMusic(file)).resolves.toEqual({ payload: uploadPayload });
+    await expect(analyzeLastFm("prana")).resolves.toEqual({ payload: livePayload });
+
+    expect(utilsMocks.postFile).toHaveBeenCalledWith("/analyze-unified", file);
+    expect(utilsMocks.postFile).toHaveBeenCalledWith("/apple-music/analyze", file);
+    expect(utilsMocks.postJson).toHaveBeenCalledWith("/lastfm", { username: "prana" });
+  });
+
+  it("throws helpful validation errors for missing inputs", async () => {
+    utilsMocks.parseYoutubeMusicProfileUrl.mockReturnValue(null);
+    utilsMocks.parseLastFmUsername.mockReturnValue(null);
+
+    await expect(analyzeYoutubeProfile("")).rejects.toThrow(
+      "Enter a valid YouTube Music profile link like https://music.youtube.com/@yourhandle.",
+    );
+    await expect(analyzeTakeout(null)).rejects.toThrow("Choose a watch-history.json file first.");
+    await expect(analyzeUnifiedTakeout(null)).rejects.toThrow(
+      "Choose a watch-history.json file first.",
+    );
+    await expect(analyzeAppleMusic(null)).rejects.toThrow(
+      "Choose an Apple Music CSV or JSON export first.",
+    );
+    await expect(analyzeLastFm("")).rejects.toThrow(
+      "Enter a Last.fm username or paste a Last.fm profile URL to use Live Mode.",
+    );
+  });
+});
