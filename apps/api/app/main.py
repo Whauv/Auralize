@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Literal
-
-import requests
-from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional at runtime
+    def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:
+        return False
 
 from app.services.analysis import (
     ANALYSIS_CACHE_TTL,
@@ -255,6 +258,8 @@ async def get_unified_mood_timeline(file: UploadFile = UPLOAD_FILE) -> list[dict
 
 @app.post("/api/lastfm")
 async def get_lastfm_dashboard(payload: LastFmRequest) -> dict[str, Any]:
+    import requests
+
     username = payload.username
 
     cache_key = f"response:lastfm:{username.lower()}"
@@ -286,6 +291,8 @@ async def get_lastfm_dashboard(payload: LastFmRequest) -> dict[str, Any]:
 
 @app.post("/api/youtube-profile")
 async def get_youtube_profile_dashboard(payload: YouTubeProfileRequest) -> dict[str, Any]:
+    import requests
+
     profile_url = payload.url
 
     cache_key = f"response:youtube-profile:{profile_url.lower()}"

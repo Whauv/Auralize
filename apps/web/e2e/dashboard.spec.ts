@@ -89,11 +89,27 @@ const analyzeResponse = {
 };
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/analyze", async (route) => {
+  await page.route("**/api/jobs/analyze?source=takeout", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(analyzeResponse),
+      body: JSON.stringify({ jobId: "job-123" }),
+    });
+  });
+
+  await page.route("**/api/jobs/job-123", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "job-123",
+        source: "takeout",
+        status: "complete",
+        progress: 100,
+        message: "Complete",
+        result: analyzeResponse,
+        error: null,
+      }),
     });
   });
 });
