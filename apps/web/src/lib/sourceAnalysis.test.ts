@@ -12,6 +12,7 @@ import type { DashboardResponse, DashboardUploadResponse } from "./types";
 const utilsMocks = vi.hoisted(() => ({
   getCachedAnalysis: vi.fn(),
   setCachedAnalysis: vi.fn(),
+  getJson: vi.fn(),
   postFile: vi.fn(),
   postJson: vi.fn(),
   buildFileAnalysisCacheKey: vi.fn((_source: string, _file: File) => "file-cache-key"),
@@ -24,6 +25,7 @@ vi.mock("./utils", () => ({
   buildFileAnalysisCacheKey: utilsMocks.buildFileAnalysisCacheKey,
   buildJsonAnalysisCacheKey: utilsMocks.buildJsonAnalysisCacheKey,
   getCachedAnalysis: utilsMocks.getCachedAnalysis,
+  getJson: utilsMocks.getJson,
   parseLastFmUsername: utilsMocks.parseLastFmUsername,
   parseYoutubeMusicProfileUrl: utilsMocks.parseYoutubeMusicProfileUrl,
   postFile: utilsMocks.postFile,
@@ -87,12 +89,22 @@ describe("source analysis helpers", () => {
       },
     };
     const file = new File(["[]"], "watch-history.json", { type: "application/json" });
-    utilsMocks.postFile.mockResolvedValue(payload);
+    utilsMocks.postFile.mockResolvedValue({ jobId: "job-takeout" });
+    utilsMocks.getJson.mockResolvedValue({
+      id: "job-takeout",
+      source: "takeout",
+      status: "complete",
+      progress: 100,
+      message: "Complete",
+      result: payload,
+      error: null,
+    });
 
     const result = await analyzeTakeout(file);
 
     expect(result).toEqual({ payload });
-    expect(utilsMocks.postFile).toHaveBeenCalledWith("/analyze", file);
+    expect(utilsMocks.postFile).toHaveBeenCalledWith("/jobs/analyze?source=takeout", file);
+    expect(utilsMocks.getJson).toHaveBeenCalledWith("/jobs/job-takeout");
     expect(utilsMocks.setCachedAnalysis).toHaveBeenCalledWith(
       "file-cache-key",
       "takeout",
@@ -137,7 +149,28 @@ describe("source analysis helpers", () => {
       moodTimeline: [],
       profileSummary: null,
     } satisfies DashboardResponse;
-    utilsMocks.postFile.mockResolvedValue(uploadPayload);
+    utilsMocks.postFile
+      .mockResolvedValueOnce({ jobId: "job-unified" })
+      .mockResolvedValueOnce({ jobId: "job-apple" });
+    utilsMocks.getJson
+      .mockResolvedValueOnce({
+        id: "job-unified",
+        source: "unified-takeout",
+        status: "complete",
+        progress: 100,
+        message: "Complete",
+        result: uploadPayload,
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        id: "job-apple",
+        source: "apple-music",
+        status: "complete",
+        progress: 100,
+        message: "Complete",
+        result: uploadPayload,
+        error: null,
+      });
     utilsMocks.postJson.mockResolvedValue(livePayload);
     const file = new File(["artist,title"], "apple.csv", { type: "text/csv" });
 
@@ -145,8 +178,10 @@ describe("source analysis helpers", () => {
     await expect(analyzeAppleMusic(file)).resolves.toEqual({ payload: uploadPayload });
     await expect(analyzeLastFm("prana")).resolves.toEqual({ payload: livePayload });
 
-    expect(utilsMocks.postFile).toHaveBeenCalledWith("/analyze-unified", file);
-    expect(utilsMocks.postFile).toHaveBeenCalledWith("/apple-music/analyze", file);
+    expect(utilsMocks.postFile).toHaveBeenCalledWith("/jobs/analyze?source=unified-takeout", file);
+    expect(utilsMocks.postFile).toHaveBeenCalledWith("/jobs/analyze?source=apple-music", file);
+    expect(utilsMocks.getJson).toHaveBeenCalledWith("/jobs/job-unified");
+    expect(utilsMocks.getJson).toHaveBeenCalledWith("/jobs/job-apple");
     expect(utilsMocks.postJson).toHaveBeenCalledWith("/lastfm", { username: "prana" });
   });
 

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-import requests
-from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional at runtime
+    def load_dotenv(*_args: Any, **_kwargs: Any) -> bool:
+        return False
 
 from app.services.analysis import (
     ANALYSIS_CACHE_TTL,
@@ -18,6 +22,7 @@ from app.services.analysis import (
     parse_unified_upload_with_enrichment,
     parse_upload_file,
 )
+from app.services.jobs import analysis_jobs
 from app.services.lastfm_api import build_lastfm_dashboard
 from app.services.response_cache import response_cache
 from app.services.stats import (
@@ -86,6 +91,12 @@ class YouTubeProfileRequest(BaseModel):
         return normalized
 
 
+class AnalysisJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout"
+
+
 @app.get("/api/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
@@ -113,6 +124,21 @@ async def analyze_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any
 
     response = build_takeout_analysis_response(parsed_history, quality, source="takeout")
     return response_cache.set(cache_key, response, ANALYSIS_CACHE_TTL)
+
+
+@app.post("/api/jobs/analyze")
+async def start_analysis_job(
+    source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout",
+    file: UploadFile = UPLOAD_FILE,
+) -> dict[str, str]:
+    raw_content = await file.read()
+    job_id = analysis_jobs.start(source, raw_content, file.content_type)
+    return {"jobId": job_id}
+
+
+@app.get("/api/jobs/{job_id}")
+def get_analysis_job(job_id: str) -> dict[str, Any]:
+    return analysis_jobs.get(job_id)
 
 
 @app.post("/api/analyze-unified")
@@ -233,6 +259,8 @@ async def get_unified_mood_timeline(file: UploadFile = UPLOAD_FILE) -> list[dict
 
 @app.post("/api/lastfm")
 async def get_lastfm_dashboard(payload: LastFmRequest) -> dict[str, Any]:
+    import requests
+
     username = payload.username
 
     cache_key = f"response:lastfm:{username.lower()}"
@@ -264,6 +292,8 @@ async def get_lastfm_dashboard(payload: LastFmRequest) -> dict[str, Any]:
 
 @app.post("/api/youtube-profile")
 async def get_youtube_profile_dashboard(payload: YouTubeProfileRequest) -> dict[str, Any]:
+    import requests
+
     profile_url = payload.url
 
     cache_key = f"response:youtube-profile:{profile_url.lower()}"

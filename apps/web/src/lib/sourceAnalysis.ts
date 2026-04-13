@@ -1,7 +1,8 @@
-import type { DashboardResponse, DashboardUploadResponse } from "./types";
+import type { AnalysisJobStatus, DashboardResponse, DashboardUploadResponse } from "./types";
 import {
   buildFileAnalysisCacheKey,
   buildJsonAnalysisCacheKey,
+  getJson,
   getCachedAnalysis,
   parseLastFmUsername,
   parseYoutubeMusicProfileUrl,
@@ -9,6 +10,12 @@ import {
   postJson,
   setCachedAnalysis,
 } from "./utils";
+
+type FileAnalysisSource = "takeout" | "unified-takeout" | "apple-music";
+type AnalysisProgressHandler = (job: AnalysisJobStatus) => void;
+
+const JOB_POLL_INTERVAL_MS = 650;
+const JOB_TIMEOUT_MS = 120_000;
 
 export async function analyzeYoutubeProfile(
   rawUrl: string,
@@ -38,6 +45,7 @@ export async function analyzeYoutubeProfile(
 
 export async function analyzeTakeout(
   file: File | null,
+  onProgress?: AnalysisProgressHandler,
 ): Promise<{ payload: DashboardUploadResponse; message?: string }> {
   if (!file) {
     throw new Error("Choose a watch-history.json file first.");
@@ -52,13 +60,14 @@ export async function analyzeTakeout(
     };
   }
 
-  const payload = await postFile<DashboardUploadResponse>("/analyze", file);
+  const payload = await analyzeFileViaJob("takeout", file, onProgress);
   setCachedAnalysis(cacheKey, "takeout", payload);
   return { payload };
 }
 
 export async function analyzeUnifiedTakeout(
   file: File | null,
+  onProgress?: AnalysisProgressHandler,
 ): Promise<{ payload: DashboardUploadResponse; message?: string }> {
   if (!file) {
     throw new Error("Choose a watch-history.json file first.");
@@ -73,13 +82,14 @@ export async function analyzeUnifiedTakeout(
     };
   }
 
-  const payload = await postFile<DashboardUploadResponse>("/analyze-unified", file);
+  const payload = await analyzeFileViaJob("unified-takeout", file, onProgress);
   setCachedAnalysis(cacheKey, "unified-takeout", payload);
   return { payload };
 }
 
 export async function analyzeAppleMusic(
   file: File | null,
+  onProgress?: AnalysisProgressHandler,
 ): Promise<{ payload: DashboardUploadResponse; message?: string }> {
   if (!file) {
     throw new Error("Choose an Apple Music CSV or JSON export first.");
@@ -94,7 +104,7 @@ export async function analyzeAppleMusic(
     };
   }
 
-  const payload = await postFile<DashboardUploadResponse>("/apple-music/analyze", file);
+  const payload = await analyzeFileViaJob("apple-music", file, onProgress);
   setCachedAnalysis(cacheKey, "apple-music", payload);
   return { payload };
 }
@@ -119,4 +129,34 @@ export async function analyzeLastFm(
   const payload = await postJson<DashboardResponse>("/lastfm", { username });
   setCachedAnalysis(cacheKey, "lastfm", payload);
   return { payload };
+}
+
+async function analyzeFileViaJob(
+  source: FileAnalysisSource,
+  file: File,
+  onProgress?: AnalysisProgressHandler,
+): Promise<DashboardUploadResponse> {
+  const { jobId } = await postFile<{ jobId: string }>(
+    `/jobs/analyze?source=${encodeURIComponent(source)}`,
+    file,
+  );
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < JOB_TIMEOUT_MS) {
+    await wait(JOB_POLL_INTERVAL_MS);
+    const job = await getJson<AnalysisJobStatus>(`/jobs/${jobId}`);
+    onProgress?.(job);
+    if (job.status === "complete" && job.result) {
+      return job.result;
+    }
+    if (job.status === "failed") {
+      throw new Error(job.error || "Analysis job failed.");
+    }
+  }
+
+  throw new Error("Analysis is taking longer than expected. Try again with a smaller export.");
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

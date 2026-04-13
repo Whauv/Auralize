@@ -90,6 +90,7 @@ type DashboardWorkspaceProps = {
   moodOptions: string[];
   dashboardTheme: DashboardTheme;
   isSimpleDashboard: boolean;
+  isAdvancedAnalyticsLoading: boolean;
   shouldShowAdvancedInsights: boolean;
   heroHours: string;
   personaProfile: PersonaProfile | null;
@@ -149,6 +150,7 @@ export function DashboardWorkspace({
   moodOptions,
   dashboardTheme,
   isSimpleDashboard,
+  isAdvancedAnalyticsLoading,
   shouldShowAdvancedInsights,
   heroHours,
   personaProfile,
@@ -259,12 +261,47 @@ export function DashboardWorkspace({
         </div>
       </Section>
 
-      {uploadQuality?.warnings.length ? (
+      {uploadQuality ? (
         <Section
-          title="Data Quality"
-          subtitle="Auralize detected a few signals worth keeping in mind while reading this dashboard."
+          title="Data Quality Review"
+          subtitle="A quick trust check showing what Auralize used, ignored, and inferred from this source."
         >
-          <div className="grid gap-3">
+          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.26em] text-[#F59E0B]">Usable</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {uploadQuality.usableEntries}
+                </p>
+                <p className="mt-1 text-xs text-[#9CA3AF]">tracks kept for analysis</p>
+              </div>
+              <div className="rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.26em] text-[#F59E0B]">Ignored</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {uploadQuality.searchEntries}
+                </p>
+                <p className="mt-1 text-xs text-[#9CA3AF]">search-history rows skipped</p>
+              </div>
+            </div>
+            <div className="grid gap-3">
+              {Object.entries(uploadQuality.sourceBreakdown ?? {}).map(([source, count]) => (
+                <div
+                  key={source}
+                  className="flex items-center justify-between rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-sm"
+                >
+                  <span className="font-semibold text-white">{source}</span>
+                  <span className="text-[#D4A853]">{count} plays</span>
+                </div>
+              ))}
+              {!Object.keys(uploadQuality.sourceBreakdown ?? {}).length ? (
+                <div className="rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-sm text-[#9CA3AF]">
+                  Source confidence will appear here when the uploaded format exposes it.
+                </div>
+              ) : null}
+            </div>
+          </div>
+          {uploadQuality.warnings.length ? (
+            <div className="mt-4 grid gap-3">
             {uploadQuality.warnings.map((warning) => (
               <div
                 key={warning}
@@ -273,7 +310,8 @@ export function DashboardWorkspace({
                 {warning}
               </div>
             ))}
-          </div>
+            </div>
+          ) : null}
         </Section>
       ) : null}
 
@@ -402,25 +440,31 @@ export function DashboardWorkspace({
 
       {shouldShowAdvancedInsights ? (
         <div ref={(node) => { sectionRefs.current["deep-dive"] = node; }}>
-          <Suspense
-            fallback={
-              <Section title="Loading Insights" subtitle="Preparing the advanced dashboard layer.">
-                <ChartSkeleton heightClass="h-[260px]" />
-              </Section>
-            }
-          >
-            <DashboardAdvancedSections
-              achievementBadges={achievementBadges}
-              memoryLane={memoryLane}
-              onActionMessage={setActionMessage}
-              onExportPlaylist={handleExportPlaylist}
-              personaProfile={personaProfile}
-              recentHistory={stats.rawEnrichedHistory}
-              selectedPlaylist={selectedPlaylist}
-              smartInsights={smartInsights}
-              tasteEvolution={tasteEvolution}
-            />
-          </Suspense>
+          {isAdvancedAnalyticsLoading ? (
+            <Section title="Loading Insights" subtitle="Preparing the advanced dashboard layer.">
+              <ChartSkeleton heightClass="h-[260px]" />
+            </Section>
+          ) : (
+            <Suspense
+              fallback={
+                <Section title="Loading Insights" subtitle="Preparing the advanced dashboard layer.">
+                  <ChartSkeleton heightClass="h-[260px]" />
+                </Section>
+              }
+            >
+              <DashboardAdvancedSections
+                achievementBadges={achievementBadges}
+                memoryLane={memoryLane}
+                onActionMessage={setActionMessage}
+                onExportPlaylist={handleExportPlaylist}
+                personaProfile={personaProfile}
+                recentHistory={stats.rawEnrichedHistory}
+                selectedPlaylist={selectedPlaylist}
+                smartInsights={smartInsights}
+                tasteEvolution={tasteEvolution}
+              />
+            </Suspense>
+          )}
         </div>
       ) : null}
     </>

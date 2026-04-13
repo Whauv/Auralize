@@ -14,6 +14,7 @@ export type EnrichedHistoryEntry = {
   tags: string[];
   playCount: number;
   timestamps: string[];
+  source?: "YouTube Music" | "YouTube" | "Apple Music" | "Last.fm" | string;
 };
 
 export type StatsPayload = {
@@ -59,6 +60,8 @@ export type UploadQualitySummary = {
   usableEntries: number;
   searchEntries: number;
   youtubeMusicEntries: number;
+  candidateEntries?: number;
+  sourceBreakdown?: Record<string, number>;
   warnings: string[];
 };
 
@@ -156,4 +159,14 @@ export type CachedDashboardAnalysis = {
   savedAt: string;
   source: DashboardResponse["source"] | "youtube-profile-request";
   response: DashboardUploadResponse | DashboardResponse;
+};
+
+export type AnalysisJobStatus = {
+  id: string;
+  source: DashboardResponse["source"];
+  status: "queued" | "running" | "complete" | "failed";
+  progress: number;
+  message: string;
+  result: DashboardUploadResponse | null;
+  error: string | null;
 };

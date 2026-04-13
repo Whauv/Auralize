@@ -111,6 +111,7 @@ export function SongTick({
 }) {
   const song = songs.find((entry) => entry.title === payload?.value);
   const title = truncateLabel(payload?.value ?? "", 18);
+  const source = truncateLabel(song?.source ?? "", 14);
 
   return (
     <g transform={`translate(${x},${y})`}>
@@ -129,6 +130,11 @@ export function SongTick({
       <text x={-124} y={5} fill="#f8fafc" fontSize={12}>
         {title}
       </text>
+      {source ? (
+        <text x={-124} y={20} fill="#D4A853" fontSize={9}>
+          {source}
+        </text>
+      ) : null}
     </g>
   );
 }

@@ -85,6 +85,7 @@ def parse_watch_history(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "title": title,
                 "playCount": 0,
                 "timestamps": [],
+                "source": "YouTube Music",
             }
         elif aggregated[video_id]["title"] == "Unknown title" and title != "Unknown title":
             aggregated[video_id]["title"] = title
@@ -120,7 +121,7 @@ def parse_unified_watch_history(entries: list[dict[str, Any]]) -> list[dict[str,
         if not timestamp:
             continue
 
-        detected_source = "youtube-music" if is_music_entry else "youtube-app"
+        detected_source = "YouTube Music" if is_music_entry else "YouTube"
         if video_id not in aggregated:
             aggregated[video_id] = {
                 "videoId": video_id,
@@ -135,8 +136,8 @@ def parse_unified_watch_history(entries: list[dict[str, Any]]) -> list[dict[str,
         aggregated[video_id]["playCount"] += 1
         aggregated[video_id]["timestamps"].append(timestamp)
 
-        if aggregated[video_id]["source"] != "youtube-music" and detected_source == "youtube-music":
-            aggregated[video_id]["source"] = "youtube-music"
+        if aggregated[video_id]["source"] != "YouTube Music" and detected_source == "YouTube Music":
+            aggregated[video_id]["source"] = "YouTube Music"
 
     results = list(aggregated.values())
     results.sort(key=lambda item: (-item["playCount"], item["title"].lower(), item["videoId"]))

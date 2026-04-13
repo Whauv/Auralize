@@ -50,7 +50,7 @@ class ParserTests(unittest.TestCase):
 
         self.assertEqual(len(parsed), 1)
         self.assertEqual(parsed[0]["playCount"], 2)
-        self.assertEqual(parsed[0]["source"], "youtube-music")
+        self.assertEqual(parsed[0]["source"], "YouTube Music")
 
 
 if __name__ == "__main__":
