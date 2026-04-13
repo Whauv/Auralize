@@ -89,6 +89,7 @@ def build_apple_music_history(records: list[dict[str, Any]]) -> list[dict[str, A
                 "tags": [],
                 "playCount": 0,
                 "timestamps": [],
+                "source": "Apple Music",
             }
             aggregated[track_id] = current
 
@@ -133,6 +134,7 @@ def build_apple_music_quality_summary(
         "usableEntries": usable_entries,
         "searchEntries": 0,
         "youtubeMusicEntries": 0,
+        "sourceBreakdown": {"Apple Music": sum(int(entry["playCount"]) for entry in enriched_history)},
         "warnings": warnings,
     }
 

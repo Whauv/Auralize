@@ -80,6 +80,7 @@ def build_quality_summary(
         "usableEntries": usable_entries,
         "searchEntries": search_entries,
         "youtubeMusicEntries": youtube_music_entries,
+        "sourceBreakdown": {"YouTube Music": usable_entries},
         "warnings": warnings,
     }
 
@@ -92,6 +93,7 @@ def build_unified_quality_summary(
     summary = build_quality_summary(payload, filtered_history)
     summary["candidateEntries"] = len(candidate_history)
     summary["warnings"] = list(summary["warnings"])
+    summary["sourceBreakdown"] = build_source_breakdown(filtered_history)
 
     if candidate_history and len(filtered_history) < len(candidate_history):
         summary["warnings"].append(
@@ -107,12 +109,24 @@ def build_unified_quality_summary(
     return summary
 
 
-async def load_upload_payload(file: UploadFile) -> tuple[list[dict[str, Any]], str]:
-    if file.content_type not in {"application/json", "text/json", "application/octet-stream"}:
+def build_source_breakdown(history: list[dict[str, Any]]) -> dict[str, int]:
+    source_breakdown: dict[str, int] = {}
+    for entry in history:
+        source = str(entry.get("source") or "Unknown source")
+        source_breakdown[source] = source_breakdown.get(source, 0) + int(
+            entry.get("playCount") or 0
+        )
+    return source_breakdown
+
+
+def load_payload_from_bytes(
+    raw_content: bytes,
+    content_type: str | None,
+) -> tuple[list[dict[str, Any]], str]:
+    if content_type not in {"application/json", "text/json", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="Please upload a JSON file.")
 
     try:
-        raw_content = await file.read()
         if not raw_content:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
         if len(raw_content) > MAX_UPLOAD_BYTES:
@@ -128,6 +142,11 @@ async def load_upload_payload(file: UploadFile) -> tuple[list[dict[str, Any]], s
         )
 
     return payload, sha256_digest(raw_content)
+
+
+async def load_upload_payload(file: UploadFile) -> tuple[list[dict[str, Any]], str]:
+    raw_content = await file.read()
+    return load_payload_from_bytes(raw_content, file.content_type)
 
 
 def build_takeout_parse_result(
@@ -168,6 +187,13 @@ def build_unified_parse_result(
 
 async def parse_upload_file(file: UploadFile) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
     payload, content_hash = await load_upload_payload(file)
+    return parse_upload_payload(payload, content_hash)
+
+
+def parse_upload_payload(
+    payload: list[dict[str, Any]],
+    content_hash: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
     parsed_history, quality = get_cached_takeout_parse(payload, content_hash)
     return parsed_history, quality, content_hash
 
@@ -176,6 +202,13 @@ async def parse_unified_upload_with_enrichment(
     file: UploadFile,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], str]:
     payload, content_hash = await load_upload_payload(file)
+    return parse_unified_payload_with_enrichment(payload, content_hash)
+
+
+def parse_unified_payload_with_enrichment(
+    payload: list[dict[str, Any]],
+    content_hash: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], str]:
     cache_key = f"parse:unified:{content_hash}"
     cached = response_cache.get(cache_key)
     if cached is not None:
@@ -199,6 +232,14 @@ async def parse_unified_upload_file(
 async def parse_apple_music_upload_file(
     file: UploadFile,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
+    raw_content = await file.read()
+    return parse_apple_music_upload_content(raw_content, file.content_type)
+
+
+def parse_apple_music_upload_content(
+    raw_content: bytes,
+    content_type: str | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
     allowed_types = {
         "application/json",
         "text/json",
@@ -207,13 +248,12 @@ async def parse_apple_music_upload_file(
         "application/csv",
         "application/vnd.ms-excel",
     }
-    if file.content_type not in allowed_types:
+    if content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
             detail="Please upload an Apple Music CSV or JSON file.",
         )
 
-    raw_content = await file.read()
     if not raw_content:
         raise HTTPException(status_code=400, detail="Uploaded Apple Music file is empty.")
     if len(raw_content) > MAX_UPLOAD_BYTES:

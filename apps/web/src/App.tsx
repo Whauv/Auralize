@@ -17,11 +17,9 @@ import { DashboardWorkspace } from "./components/DashboardWorkspace";
 import { SourceStudio, type SourceMode } from "./components/SourceStudio";
 import { ShareStudio } from "./components/ShareStudio";
 import type {
-  AchievementBadge,
+  AnalysisJobStatus,
   DashboardUploadResponse,
   DashboardResponse,
-  MemoryLaneEntry,
-  PersonaProfile,
   PlaylistBundle,
   PlaylistMode,
   ParsedHistoryEntry,
@@ -29,25 +27,17 @@ import type {
   RecapThemePack,
   RecapVariant,
   SavedSession,
-  SmartInsight,
-  TasteEvolutionPoint,
   TimeframeOption,
   UploadQualitySummary,
 } from "./lib/types";
 import {
   PROFILE_SHARE_PARAM,
   SHARE_PARAM,
-  buildAchievementBadges,
-  buildMemoryLane,
   buildPassportData,
-  buildPlaylistBundles,
   buildPublicProfileSharePayload,
   buildGenreBreakdownFromHistory,
   buildMoodTimelineFromHistory,
-  buildPersonaProfile,
-  buildSmartInsights,
   buildStatsPayloadFromHistory,
-  buildTasteEvolution,
   classifyGenre,
   decodePublicProfilePayload,
   decodeSharePayload,
@@ -80,6 +70,11 @@ import {
   analyzeUnifiedTakeout,
   analyzeYoutubeProfile,
 } from "./lib/sourceAnalysis";
+import {
+  buildAdvancedAnalytics,
+  type AdvancedAnalyticsResult,
+} from "./lib/advancedAnalytics";
+import type { AdvancedAnalyticsWorkerResponse } from "./lib/advancedAnalytics.worker";
 import { SharedPassportPage } from "./components/SharedPassportPage";
 import { SharedProfilePage } from "./components/SharedProfilePage";
 type DashboardDensity = "simple" | "full";
@@ -738,6 +733,7 @@ export default function App() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<AnalysisJobStatus | null>(null);
   const [isRecapOpen, setIsRecapOpen] = useState(false);
   const [timeframe, setTimeframe] = useState<TimeframeOption>("all");
   const [recapTheme, setRecapTheme] = useState<RecapThemePack>("gold-noir");
@@ -753,8 +749,11 @@ export default function App() {
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [showIntro, setShowIntro] = useState(true);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [advancedAnalytics, setAdvancedAnalytics] = useState<AdvancedAnalyticsResult | null>(null);
+  const [isAdvancedAnalyticsLoading, setIsAdvancedAnalyticsLoading] = useState(false);
   const passportRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const advancedAnalyticsRequestId = useRef(0);
   const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
 
   useEffect(() => {
@@ -928,41 +927,66 @@ export default function App() {
   }, [dashboard?.source, stats, genreBreakdown, moodTimeline]);
   const activePassport = sharedPassport ?? passportData ?? null;
   const exportTheme = EXPORT_THEME_OPTIONS[exportThemeId];
-  const tasteEvolution = useMemo<TasteEvolutionPoint[]>(() => {
+  useEffect(() => {
     if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
-      return [];
+      advancedAnalyticsRequestId.current += 1;
+      setAdvancedAnalytics(null);
+      setIsAdvancedAnalyticsLoading(false);
+      return;
     }
 
-    return buildTasteEvolution(stats.rawEnrichedHistory, timeframe);
-  }, [stats, isYoutubeProfileMode, timeframe, dashboardDensity]);
-  const smartInsights = useMemo<SmartInsight[]>(() => {
-    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
-      return [];
+    const requestId = advancedAnalyticsRequestId.current + 1;
+    advancedAnalyticsRequestId.current = requestId;
+    const input = { stats, genreBreakdown, moodTimeline, timeframe };
+    setAdvancedAnalytics(null);
+    setIsAdvancedAnalyticsLoading(true);
+
+    if (typeof Worker === "undefined") {
+      setAdvancedAnalytics(buildAdvancedAnalytics(input));
+      setIsAdvancedAnalyticsLoading(false);
+      return;
     }
 
-    return buildSmartInsights(stats, genreBreakdown, moodTimeline);
-  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
-  const personaProfile = useMemo<PersonaProfile | null>(() => {
-    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
-      return null;
-    }
+    const worker = new Worker(
+      new URL("./lib/advancedAnalytics.worker.ts", import.meta.url),
+      { type: "module" },
+    );
 
-    return buildPersonaProfile(stats, genreBreakdown, moodTimeline);
-  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
-  const memoryLane = useMemo<MemoryLaneEntry[]>(() => {
-    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
-      return [];
-    }
+    worker.onmessage = (event: MessageEvent<AdvancedAnalyticsWorkerResponse>) => {
+      if (advancedAnalyticsRequestId.current !== event.data.id) {
+        return;
+      }
 
-    return buildMemoryLane(stats.rawEnrichedHistory);
-  }, [stats, isYoutubeProfileMode, dashboardDensity]);
-  const achievementBadges = useMemo<AchievementBadge[]>(() => {
-    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
-      return [];
-    }
+      if (event.data.type === "complete") {
+        setAdvancedAnalytics(event.data.result);
+      } else {
+        setAdvancedAnalytics(buildAdvancedAnalytics(input));
+      }
 
-    return buildAchievementBadges(stats, genreBreakdown, moodTimeline);
-  }, [stats, genreBreakdown, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
+      setIsAdvancedAnalyticsLoading(false);
+      worker.terminate();
+    };
+
+    worker.onerror = () => {
+      if (advancedAnalyticsRequestId.current === requestId) {
+        setAdvancedAnalytics(buildAdvancedAnalytics(input));
+        setIsAdvancedAnalyticsLoading(false);
+      }
+      worker.terminate();
+    };
+
+    worker.postMessage({ id: requestId, input });
+
+    return () => {
+      worker.terminate();
+    };
+  }, [stats, genreBreakdown, moodTimeline, timeframe, isYoutubeProfileMode, dashboardDensity]);
+
+  const tasteEvolution = advancedAnalytics?.tasteEvolution ?? [];
+  const smartInsights = advancedAnalytics?.smartInsights ?? [];
+  const personaProfile = advancedAnalytics?.personaProfile ?? null;
+  const memoryLane = advancedAnalytics?.memoryLane ?? [];
+  const achievementBadges = advancedAnalytics?.achievementBadges ?? [];
   const artistOptions = useMemo(
     () =>
       Array.from(new Set(indexedTimeframeEntries.map(({ entry }) => entry.artist))).sort((a, b) =>
@@ -984,13 +1008,7 @@ export default function App() {
       ),
     [indexedTimeframeEntries]
   );
-  const playlistBundles = useMemo<PlaylistBundle[]>(() => {
-    if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
-      return [];
-    }
-
-    return buildPlaylistBundles(stats.rawEnrichedHistory, moodTimeline);
-  }, [stats, moodTimeline, isYoutubeProfileMode, dashboardDensity]);
+  const playlistBundles = advancedAnalytics?.playlistBundles ?? [];
   const selectedPlaylist = useMemo(
     () => playlistBundles.find((bundle) => bundle.id === selectedPlaylistId) ?? playlistBundles[0] ?? null,
     [playlistBundles, selectedPlaylistId]
@@ -1199,7 +1217,7 @@ export default function App() {
       return;
     }
 
-    const { payload, message } = await analyzeTakeout(file);
+    const { payload, message } = await analyzeTakeout(file, setAnalysisProgress);
     applyDashboardUploadResponse(payload);
     if (message) {
       setActionMessage(message);
@@ -1207,7 +1225,7 @@ export default function App() {
   }
 
   async function handleUnifiedTakeoutSubmit() {
-    const { payload, message } = await analyzeUnifiedTakeout(file);
+    const { payload, message } = await analyzeUnifiedTakeout(file, setAnalysisProgress);
     applyDashboardUploadResponse(payload);
     if (message) {
       setActionMessage(message);
@@ -1215,7 +1233,7 @@ export default function App() {
   }
 
   async function handleAppleMusicSubmit() {
-    const { payload, message } = await analyzeAppleMusic(file);
+    const { payload, message } = await analyzeAppleMusic(file, setAnalysisProgress);
     applyDashboardUploadResponse(payload);
     if (message) {
       setActionMessage(message);
@@ -1235,6 +1253,7 @@ export default function App() {
     setIsUploading(true);
     setError(null);
     setActionMessage(null);
+    setAnalysisProgress(null);
 
     try {
       if (sourceMode === "takeout") {
@@ -1257,6 +1276,7 @@ export default function App() {
       setUploadQuality(null);
     } finally {
       setIsUploading(false);
+      setAnalysisProgress(null);
     }
   }
 
@@ -1442,13 +1462,31 @@ export default function App() {
             </div>
 
             <SourceStudio
-              actionMessage={actionMessage}
+              actionMessage={
+                analysisProgress
+                  ? `${analysisProgress.message} ${analysisProgress.progress}%`
+                  : actionMessage
+              }
               error={error}
               fileName={file?.name ?? null}
               isDragActive={isDragActive}
               isUploading={isUploading}
               lastFmUsername={lastFmUsername}
-              loadingIndicator={<LoadingSpinner />}
+              loadingIndicator={
+                analysisProgress ? (
+                  <div className="max-w-md">
+                    <LoadingSpinner />
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#0F172A]">
+                      <div
+                        className="h-full rounded-full bg-[#D4A853] transition-all"
+                        style={{ width: `${analysisProgress.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <LoadingSpinner />
+                )
+              }
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
@@ -1483,6 +1521,7 @@ export default function App() {
           heroHours={heroHours}
           isSimpleDashboard={isSimpleDashboard}
           isUploading={isUploading}
+          isAdvancedAnalyticsLoading={isAdvancedAnalyticsLoading}
           isYoutubeProfileMode={isYoutubeProfileMode}
           memoryLane={memoryLane}
           moodOptions={moodOptions}

@@ -41,6 +41,9 @@ MOOD_LABELS = {
     "evening": "Relaxed",
 }
 
+TOPIC_SUFFIX_PATTERN = re.compile(r"\s*-\s*topic$", re.IGNORECASE)
+VEVO_SUFFIX_PATTERN = re.compile(r"\s*vevo$", re.IGNORECASE)
+
 
 def duration_to_minutes(duration: str) -> float:
     match = ISO_8601_DURATION_PATTERN.match(duration)
@@ -62,16 +65,18 @@ def merge_history_with_enrichment(
     for entry in history:
         video_id = str(entry["videoId"])
         enrichment = enriched_lookup.get(video_id, {})
+        artist = normalize_artist_name(str(enrichment.get("artist") or "Unknown artist"))
         enriched_history.append(
             {
                 "videoId": video_id,
                 "title": str(enrichment.get("title") or entry["title"]),
-                "artist": str(enrichment.get("artist") or "Unknown artist"),
+                "artist": artist,
                 "thumbnail": enrichment.get("thumbnail"),
                 "duration": str(enrichment.get("duration") or "PT0S"),
                 "tags": list(enrichment.get("tags") or []),
                 "playCount": int(entry["playCount"]),
                 "timestamps": list(entry.get("timestamps") or []),
+                "source": str(entry.get("source") or "YouTube Music"),
             }
         )
 
@@ -79,6 +84,12 @@ def merge_history_with_enrichment(
         key=lambda item: (-item["playCount"], item["artist"].lower(), item["title"].lower())
     )
     return enriched_history
+
+
+def normalize_artist_name(artist: str) -> str:
+    cleaned = TOPIC_SUFFIX_PATTERN.sub("", artist).strip()
+    cleaned = VEVO_SUFFIX_PATTERN.sub("", cleaned).strip()
+    return cleaned or artist or "Unknown artist"
 
 
 def classify_genre(tags: list[str], artist: str) -> str:

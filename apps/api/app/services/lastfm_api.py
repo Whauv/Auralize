@@ -106,6 +106,7 @@ def build_lastfm_dashboard(username: str) -> dict[str, Any]:
                 "tags": [],
                 "playCount": int(track.get("playcount") or 0),
                 "timestamps": sorted(recent_timestamps.get(track_id, [])),
+                "source": "Last.fm",
             }
         )
 
@@ -123,6 +124,7 @@ def build_lastfm_dashboard(username: str) -> dict[str, Any]:
                 "tags": [],
                 "playCount": len(timestamps),
                 "timestamps": sorted(timestamps),
+                "source": "Last.fm",
             }
         )
 
