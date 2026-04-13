@@ -3,9 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 DEFAULT_CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "response_cache.json"
@@ -61,7 +61,7 @@ class ResponseCache:
             if not isinstance(item, dict):
                 continue
             expires_at = item.get("expiresAt")
-            if not isinstance(expires_at, (float, int)) or expires_at < now:
+            if not isinstance(expires_at, float | int) or expires_at < now:
                 continue
             self._store[str(key)] = (float(expires_at), item.get("value"))
 

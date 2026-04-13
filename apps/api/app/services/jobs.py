@@ -5,8 +5,6 @@ import time
 import uuid
 from typing import Any, Literal
 
-from fastapi import HTTPException
-
 from app.services.analysis import (
     build_dashboard_payload,
     build_takeout_analysis_response,
@@ -15,6 +13,7 @@ from app.services.analysis import (
     parse_unified_payload_with_enrichment,
     parse_upload_payload,
 )
+from fastapi import HTTPException
 
 AnalysisJobSource = Literal["takeout", "unified-takeout", "apple-music"]
 

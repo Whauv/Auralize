@@ -134,7 +134,9 @@ def build_apple_music_quality_summary(
         "usableEntries": usable_entries,
         "searchEntries": 0,
         "youtubeMusicEntries": 0,
-        "sourceBreakdown": {"Apple Music": sum(int(entry["playCount"]) for entry in enriched_history)},
+        "sourceBreakdown": {
+            "Apple Music": sum(int(entry["playCount"]) for entry in enriched_history)
+        },
         "warnings": warnings,
     }
 
