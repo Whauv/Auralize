@@ -25,7 +25,6 @@ import type {
   ParsedHistoryEntry,
   PublicProfileSharePayload,
   RecapThemePack,
-  RecapVariant,
   SavedSession,
   TimeframeOption,
   UploadQualitySummary,
@@ -737,7 +736,6 @@ export default function App() {
   const [isRecapOpen, setIsRecapOpen] = useState(false);
   const [timeframe, setTimeframe] = useState<TimeframeOption>("all");
   const [recapTheme, setRecapTheme] = useState<RecapThemePack>("gold-noir");
-  const [recapVariant, setRecapVariant] = useState<RecapVariant>("auto");
   const [dashboardDensity, setDashboardDensity] = useState<DashboardDensity>("simple");
   const [exportThemeId, setExportThemeId] = useState<ExportThemeId>("aurora-noir");
   const [searchTerm, setSearchTerm] = useState("");
@@ -745,7 +743,6 @@ export default function App() {
   const [selectedArtist, setSelectedArtist] = useState("");
   const [selectedMood, setSelectedMood] = useState("");
   const [selectedPlaylistId] = useState<PlaylistMode>("top");
-  const [compareTimeframe, setCompareTimeframe] = useState<TimeframeOption>("90d");
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [showIntro, setShowIntro] = useState(true);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -795,9 +792,6 @@ export default function App() {
     if (saved.recapTheme) {
       setRecapTheme(saved.recapTheme);
     }
-    if (saved.recapVariant) {
-      setRecapVariant(saved.recapVariant);
-    }
     if (saved.dashboardDensity) {
       setDashboardDensity(saved.dashboardDensity);
     }
@@ -814,11 +808,10 @@ export default function App() {
     saveDashboardPreferences({
       timeframe,
       recapTheme,
-      recapVariant,
       dashboardDensity,
       exportThemeId
     });
-  }, [timeframe, recapTheme, recapVariant, dashboardDensity, exportThemeId]);
+  }, [timeframe, recapTheme, dashboardDensity, exportThemeId]);
 
   useEffect(() => {
     saveSavedSessions(savedSessions);
@@ -1046,25 +1039,6 @@ export default function App() {
       sourceLabel
     });
   }, [stats, passportData, genreBreakdown, moodTimeline, personaProfile, timeframe, sourceLabel]);
-  const comparisonEntries = useMemo(() => {
-    if (!dashboard?.stats?.rawEnrichedHistory || isYoutubeProfileMode) {
-      return [];
-    }
-
-    return filterHistoryByTimeframe(dashboard.stats.rawEnrichedHistory, compareTimeframe);
-  }, [dashboard?.stats?.rawEnrichedHistory, compareTimeframe, isYoutubeProfileMode]);
-  const comparisonStats = useMemo(() => {
-    if (!comparisonEntries.length || isYoutubeProfileMode) {
-      return null;
-    }
-    return buildStatsPayloadFromHistory(comparisonEntries);
-  }, [comparisonEntries, isYoutubeProfileMode]);
-  const comparisonGenreBreakdown = useMemo(() => {
-    if (!comparisonEntries.length || isYoutubeProfileMode) {
-      return [];
-    }
-    return buildGenreBreakdownFromHistory(comparisonEntries);
-  }, [comparisonEntries, isYoutubeProfileMode]);
 
   function scrollToSection(sectionId: string) {
     sectionRefs.current[sectionId]?.scrollIntoView({
@@ -1395,7 +1369,7 @@ export default function App() {
             passportData={passportData}
             timeframeLabel={TIMEFRAME_LABELS[timeframe]}
             themePack={recapTheme}
-            variant={recapVariant}
+            variant="auto"
           />
         </Suspense>
       ) : null}
@@ -1421,6 +1395,29 @@ export default function App() {
         >
           <div className="absolute inset-0" style={{ backgroundImage: dashboardTheme.heroGlow }} />
           <div className="relative">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Theme</p>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ["gold-noir", "Gold Noir"],
+                  ["violet-dusk", "Violet Dusk"],
+                  ["teal-afterglow", "Teal Afterglow"]
+                ] as const).map(([themeId, label]) => (
+                  <button
+                    key={themeId}
+                    className={`rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                      recapTheme === themeId
+                        ? "border-[#D4A853] bg-[#D4A853] text-slate-950"
+                        : "border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
+                    }`}
+                    onClick={() => setRecapTheme(themeId)}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid gap-8 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
               <div>
                 <p className="mb-3 text-sm uppercase tracking-[0.35em]" style={{ color: dashboardTheme.accent }}>
@@ -1504,9 +1501,6 @@ export default function App() {
         <DashboardWorkspace
           achievementBadges={achievementBadges}
           artistOptions={artistOptions}
-          compareTimeframe={compareTimeframe}
-          comparisonGenreBreakdown={comparisonGenreBreakdown}
-          comparisonStats={comparisonStats}
           dashboard={dashboard}
           dashboardDensity={dashboardDensity}
           dashboardTheme={dashboardTheme}
@@ -1529,7 +1523,6 @@ export default function App() {
           parsedHistoryLength={parsedHistory.length}
           personaProfile={personaProfile}
           recapTheme={recapTheme}
-          recapVariant={recapVariant}
           savedSessions={savedSessions}
           scrollToSection={scrollToSection}
           searchTerm={searchTerm}
@@ -1539,11 +1532,9 @@ export default function App() {
           selectedMood={selectedMood}
           selectedPlaylist={selectedPlaylist}
           setActionMessage={setActionMessage}
-          setCompareTimeframe={setCompareTimeframe}
           setDashboardDensity={setDashboardDensity}
           setIsRecapOpen={setIsRecapOpen}
           setRecapTheme={setRecapTheme}
-          setRecapVariant={setRecapVariant}
           setSearchTerm={setSearchTerm}
           setSelectedArtist={setSelectedArtist}
           setSelectedGenre={setSelectedGenre}

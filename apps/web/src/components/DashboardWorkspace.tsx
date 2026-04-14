@@ -23,7 +23,7 @@ import type {
   TimeframeOption,
   UploadQualitySummary,
 } from "../lib/types";
-import { formatHours, TIMEFRAME_LABELS } from "../lib/utils";
+import { TIMEFRAME_LABELS } from "../lib/utils";
 
 const DashboardAdvancedSections = lazy(() =>
   import("./DashboardAdvancedSections").then((module) => ({
@@ -54,14 +54,10 @@ type DashboardWorkspaceProps = {
   uploadQuality: UploadQualitySummary | null;
   timeframe: TimeframeOption;
   setTimeframe: Dispatch<SetStateAction<TimeframeOption>>;
-  compareTimeframe: TimeframeOption;
-  setCompareTimeframe: Dispatch<SetStateAction<TimeframeOption>>;
   dashboardDensity: DashboardDensity;
   setDashboardDensity: Dispatch<SetStateAction<DashboardDensity>>;
   recapTheme: "gold-noir" | "violet-dusk" | "teal-afterglow";
   setRecapTheme: Dispatch<SetStateAction<"gold-noir" | "violet-dusk" | "teal-afterglow">>;
-  recapVariant: "auto" | "annual" | "monthly" | "seasonal";
-  setRecapVariant: Dispatch<SetStateAction<"auto" | "annual" | "monthly" | "seasonal">>;
   savedSessions: import("../lib/types").SavedSession[];
   handleSaveSession: () => void;
   handleRestoreSession: (session: import("../lib/types").SavedSession) => void;
@@ -69,8 +65,6 @@ type DashboardWorkspaceProps = {
   scrollToSection: (sectionId: string) => void;
   setIsRecapOpen: Dispatch<SetStateAction<boolean>>;
   stats: import("../lib/types").StatsPayload | null;
-  comparisonStats: import("../lib/types").StatsPayload | null;
-  comparisonGenreBreakdown: GenreBreakdownEntry[];
   topSongs: EnrichedHistoryEntry[];
   topArtists: Array<{ artist: string; playCount: number }>;
   genreBreakdown: GenreBreakdownEntry[];
@@ -114,14 +108,10 @@ export function DashboardWorkspace({
   uploadQuality,
   timeframe,
   setTimeframe,
-  compareTimeframe,
-  setCompareTimeframe,
   dashboardDensity,
   setDashboardDensity,
   recapTheme,
   setRecapTheme,
-  recapVariant,
-  setRecapVariant,
   savedSessions,
   handleSaveSession,
   handleRestoreSession,
@@ -129,8 +119,6 @@ export function DashboardWorkspace({
   scrollToSection,
   setIsRecapOpen,
   stats,
-  comparisonStats,
-  comparisonGenreBreakdown,
   topSongs,
   topArtists,
   genreBreakdown,
@@ -316,36 +304,18 @@ export function DashboardWorkspace({
       ) : null}
 
       <DashboardControlPanel
-        compareTimeframe={compareTimeframe}
-        comparisonHoursLabel={
-          comparisonStats ? formatHours(comparisonStats.totalListeningMinutes) : "0.0 hrs"
-        }
-        comparisonMinutesDeltaLabel={
-          comparisonStats
-            ? `${Math.round(stats.totalListeningMinutes - comparisonStats.totalListeningMinutes)} min delta vs current`
-            : "No comparable data yet"
-        }
-        comparisonTopArtist={comparisonStats?.topArtists[0]?.artist ?? "No data"}
-        comparisonTopGenre={comparisonGenreBreakdown[0]?.genre ?? "Other"}
-        currentStatsLabel={`${stats.rawEnrichedHistory.length} songs, ${formatHours(stats.totalListeningMinutes)}`}
-        currentTopArtist={topArtists[0]?.artist ?? "No data"}
-        currentTopGenre={genreBreakdown[0]?.genre ?? "Other"}
         dashboardDensity={dashboardDensity}
         isYoutubeProfileMode={false}
-        onCompareTimeframeChange={setCompareTimeframe}
         onDashboardDensityChange={setDashboardDensity}
         onDeleteSession={handleDeleteSession}
         onOpenRecap={() => setIsRecapOpen(true)}
         onRecapThemeChange={setRecapTheme}
-        onRecapVariantChange={setRecapVariant}
         onRestoreSession={handleRestoreSession}
         onSaveSession={handleSaveSession}
         onScrollToSection={scrollToSection}
         recapTheme={recapTheme}
-        recapVariant={recapVariant}
         savedSessions={savedSessions}
         statsPresent
-        timeframe={timeframe}
       />
 
       <DashboardFiltersPanel

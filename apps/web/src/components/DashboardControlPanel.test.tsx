@@ -29,11 +29,9 @@ const savedSession: SavedSession = {
 };
 
 describe("DashboardControlPanel", () => {
-  it("drives dashboard mode, compare, recap, and session actions", async () => {
+  it("drives dashboard mode, recap, and session actions", async () => {
     const user = userEvent.setup();
     const onDashboardDensityChange = vi.fn();
-    const onCompareTimeframeChange = vi.fn();
-    const onRecapVariantChange = vi.fn();
     const onRecapThemeChange = vi.fn();
     const onOpenRecap = vi.fn();
     const onSaveSession = vi.fn();
@@ -43,36 +41,22 @@ describe("DashboardControlPanel", () => {
 
     render(
       <DashboardControlPanel
-        compareTimeframe="90d"
-        comparisonHoursLabel="2.0 hrs"
-        comparisonMinutesDeltaLabel="30 min delta vs current"
-        comparisonTopArtist="Artist Two"
-        comparisonTopGenre="Lo-fi"
-        currentStatsLabel="10 songs, 5.0 hrs"
-        currentTopArtist="Artist One"
-        currentTopGenre="Pop"
         dashboardDensity="simple"
         isYoutubeProfileMode={false}
-        onCompareTimeframeChange={onCompareTimeframeChange}
         onDashboardDensityChange={onDashboardDensityChange}
         onDeleteSession={onDeleteSession}
         onOpenRecap={onOpenRecap}
         onRecapThemeChange={onRecapThemeChange}
-        onRecapVariantChange={onRecapVariantChange}
         onRestoreSession={onRestoreSession}
         onSaveSession={onSaveSession}
         onScrollToSection={onScrollToSection}
         recapTheme="gold-noir"
-        recapVariant="auto"
         savedSessions={[savedSession]}
         statsPresent
-        timeframe="30d"
       />,
     );
 
     await user.click(screen.getByRole("button", { name: "Full view" }));
-    await user.selectOptions(screen.getByLabelText("Comparison timeframe"), "365d");
-    await user.selectOptions(screen.getByLabelText("Recap Variant"), "monthly");
     await user.selectOptions(screen.getByLabelText("Theme Pack"), "violet-dusk");
     await user.click(screen.getByRole("button", { name: "Launch recap" }));
     await user.click(screen.getByRole("button", { name: "Save current session" }));
@@ -81,8 +65,6 @@ describe("DashboardControlPanel", () => {
     await user.click(screen.getByRole("button", { name: "Overview" }));
 
     expect(onDashboardDensityChange).toHaveBeenCalledWith("full");
-    expect(onCompareTimeframeChange).toHaveBeenCalledWith("365d");
-    expect(onRecapVariantChange).toHaveBeenCalledWith("monthly");
     expect(onRecapThemeChange).toHaveBeenCalledWith("violet-dusk");
     expect(onOpenRecap).toHaveBeenCalledTimes(1);
     expect(onSaveSession).toHaveBeenCalledTimes(1);
