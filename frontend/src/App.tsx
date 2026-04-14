@@ -58,11 +58,12 @@ import {
   truncateLabel
 } from "./utils";
 
-type SourceMode = "takeout" | "lastfm";
+type SourceMode = "takeout" | "spotify" | "lastfm";
 
 export default function App() {
   const [sourceMode, setSourceMode] = useState<SourceMode>("takeout");
   const [file, setFile] = useState<File | null>(null);
+  const [spotifyFile, setSpotifyFile] = useState<File | null>(null);
   const [youtubeMusicProfileUrl, setYoutubeMusicProfileUrl] = useState("");
   const [lastFmUsername, setLastFmUsername] = useState("");
   const [parsedHistory, setParsedHistory] = useState<ParsedHistoryEntry[]>([]);
@@ -140,6 +141,11 @@ export default function App() {
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     setFile(event.target.files?.[0] ?? null);
+    setError(null);
+  }
+
+  function handleSpotifyFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setSpotifyFile(event.target.files?.[0] ?? null);
     setError(null);
   }
 
@@ -224,6 +230,25 @@ export default function App() {
     setIsRecapOpen(false);
   }
 
+  async function handleSpotifySubmit() {
+    if (!spotifyFile) {
+      setError("Choose a Spotify StreamingHistory JSON file first.");
+      return;
+    }
+
+    const payload = await postFile<DashboardResponse>("/spotify/dashboard", spotifyFile);
+    setDashboard(payload);
+    setParsedHistory(
+      payload.stats.rawEnrichedHistory.map((entry) => ({
+        videoId: entry.videoId,
+        title: entry.title,
+        playCount: entry.playCount,
+        timestamps: entry.timestamps
+      }))
+    );
+    setIsRecapOpen(false);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsUploading(true);
@@ -233,6 +258,8 @@ export default function App() {
     try {
       if (sourceMode === "takeout") {
         await handleTakeoutSubmit();
+      } else if (sourceMode === "spotify") {
+        await handleSpotifySubmit();
       } else {
         await handleLastFmSubmit();
       }
@@ -335,10 +362,10 @@ export default function App() {
                   Your Music DNA
                 </p>
                 <h1 className="max-w-3xl text-3xl font-semibold leading-tight text-white md:text-5xl lg:text-6xl">
-                  Upload your history, paste a profile, or switch to live scrobbles.
+                  Upload YouTube or Spotify history, paste a profile, or switch to live scrobbles.
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm text-slate-300 md:text-lg">
-                  Use Google Takeout for deep playback analytics, paste a YouTube Music profile link for a lightweight public preview, or use Last.fm Live Mode for a fresh snapshot of your listening identity.
+                  Use Google Takeout for YouTube Music analytics, upload Spotify StreamingHistory JSON for the same dashboard shape, paste a YouTube Music profile link for a lightweight public preview, or use Last.fm Live Mode for a fresh snapshot.
                 </p>
               </div>
 
@@ -356,22 +383,30 @@ export default function App() {
             <form className="mt-8 flex flex-col gap-5" onSubmit={handleSubmit}>
               <div className="flex flex-wrap gap-3">
                 <button
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    sourceMode === "takeout"
+                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${sourceMode === "takeout"
                       ? "bg-white text-slate-950"
                       : "border border-white/15 bg-white/5 text-white hover:bg-white/10"
-                  }`}
+                    }`}
                   onClick={() => setSourceMode("takeout")}
                   type="button"
                 >
-                  Google Takeout
+                  YouTube Takeout
                 </button>
                 <button
-                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                    sourceMode === "lastfm"
+                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${sourceMode === "spotify"
                       ? "bg-white text-slate-950"
                       : "border border-white/15 bg-white/5 text-white hover:bg-white/10"
-                  }`}
+                    }`}
+                  onClick={() => setSourceMode("spotify")}
+                  type="button"
+                >
+                  Spotify JSON
+                </button>
+                <button
+                  className={`rounded-full px-5 py-3 text-sm font-semibold transition ${sourceMode === "lastfm"
+                      ? "bg-white text-slate-950"
+                      : "border border-white/15 bg-white/5 text-white hover:bg-white/10"
+                    }`}
                   onClick={() => setSourceMode("lastfm")}
                   type="button"
                 >
@@ -381,11 +416,10 @@ export default function App() {
 
               {sourceMode === "takeout" ? (
                 <div
-                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${
-                    isDragActive
+                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${isDragActive
                       ? "border-fuchsia-300 bg-fuchsia-500/10"
                       : "border-fuchsia-400/20 bg-slate-900/60"
-                  }`}
+                    }`}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
@@ -425,7 +459,7 @@ export default function App() {
                         </div>
                       </div>
 
-                        <div className="rounded-[1.5rem] border border-cyan-300/10 bg-slate-950/55 p-5">
+                      <div className="rounded-[1.5rem] border border-cyan-300/10 bg-slate-950/55 p-5">
                         <label className="block text-sm font-semibold text-white">
                           YouTube Music Profile Link
                         </label>
@@ -443,6 +477,53 @@ export default function App() {
                           Full analytics still require `watch-history.json` or Last.fm Live Mode because YouTube Music public profiles do not expose private listening history.
                         </p>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              ) : sourceMode === "spotify" ? (
+                <div
+                  className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${isDragActive
+                      ? "border-emerald-300 bg-emerald-500/10"
+                      : "border-emerald-400/20 bg-slate-900/60"
+                    }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsDragActive(false);
+                    const droppedFile = event.dataTransfer.files?.[0] ?? null;
+                    if (droppedFile) {
+                      setSpotifyFile(droppedFile);
+                      setError(null);
+                    }
+                  }}
+                >
+                  <div className="mx-auto flex max-w-3xl flex-col gap-6 text-center lg:text-left">
+                    <div>
+                      <p className="text-xl font-semibold text-white">
+                        Drop Spotify StreamingHistory JSON here
+                      </p>
+                      <p className="mt-2 text-sm text-slate-400">
+                        Supports legacy and extended Spotify export formats with automatic enrichment via Spotify Web API.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                      <label className="cursor-pointer rounded-full bg-gradient-to-r from-emerald-300 via-green-300 to-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-950/30 transition hover:scale-[1.02]">
+                        Choose Spotify JSON
+                        <input
+                          className="sr-only"
+                          type="file"
+                          accept=".json,application/json"
+                          onChange={handleSpotifyFileChange}
+                        />
+                      </label>
+                      <button
+                        className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                        onClick={() => setSourceMode("takeout")}
+                        type="button"
+                      >
+                        Use YouTube Takeout instead
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -484,6 +565,19 @@ export default function App() {
                         The button uses your file if one is selected. Otherwise, it uses the YouTube Music profile link.
                       </p>
                     </>
+                  ) : sourceMode === "spotify" ? (
+                    <>
+                      {spotifyFile ? (
+                        <p className="text-sm text-slate-300">
+                          Selected Spotify file: <span className="font-medium text-white">{spotifyFile.name}</span>
+                        </p>
+                      ) : (
+                        <p className="text-sm text-slate-500">No Spotify file selected yet.</p>
+                      )}
+                      <p className="text-xs text-slate-500">
+                        Upload a Spotify StreamingHistory JSON file to build the same dashboard schema used by YouTube.
+                      </p>
+                    </>
                   ) : (
                     <p className="text-sm text-slate-400">
                       Last.fm user: <span className="text-white">{lastFmUsername || "not set"}</span>
@@ -506,7 +600,9 @@ export default function App() {
                     ? "Loading..."
                     : sourceMode === "takeout"
                       ? "Build dashboard or preview"
-                      : "Start Live Mode"}
+                      : sourceMode === "spotify"
+                        ? "Build Spotify dashboard"
+                        : "Start Live Mode"}
                 </button>
               </div>
             </form>

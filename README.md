@@ -1,11 +1,12 @@
 # Auralize
 
-Auralize is a YouTube Music and Last.fm listening visualizer with a React + TypeScript + Vite frontend and a FastAPI backend.
+Auralize is a YouTube Music, Spotify, and Last.fm listening visualizer with a React + TypeScript + Vite frontend and a FastAPI backend.
 
 ## Features
 
 - Google Takeout `watch-history.json` upload flow
 - YouTube Data API enrichment for titles, artists, thumbnails, durations, and tags
+- Spotify StreamingHistory JSON upload flow with Spotify Web API enrichment
 - Stats dashboard with top songs, top artists, genre DNA, mood timeline, and listening heatmap
 - Shareable Music Passport card with PNG export
 - Optional Last.fm Live Mode
@@ -17,6 +18,8 @@ Backend `backend/.env`
 ```env
 YOUTUBE_API_KEY=
 LASTFM_API_KEY=
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
 ```
 
 Frontend `.env` or compose environment
@@ -90,6 +93,7 @@ Services:
 - `POST /api/mood-timeline`
 - `POST /api/lastfm`
 - `POST /api/youtube-profile`
+- `POST /api/spotify/dashboard`
 
 ## Live Mode
 

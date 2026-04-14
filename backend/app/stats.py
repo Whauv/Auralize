@@ -23,14 +23,41 @@ GENRE_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 ARTIST_HEURISTICS: dict[str, tuple[str, ...]] = {
-    "K-Pop": ("bts", "blackpink", "twice", "newjeans", "stray kids", "seventeen", "aespa"),
+    "K-Pop": (
+        "bts",
+        "blackpink",
+        "twice",
+        "newjeans",
+        "stray kids",
+        "seventeen",
+        "aespa",
+    ),
     "Hip-Hop": ("drake", "kendrick", "j cole", "future", "travis scott", "nicki minaj"),
-    "R&B": ("sza", "the weeknd", "brent faiyaz", "summer walker", "frank ocean", "kehlani"),
-    "Pop": ("taylor swift", "ariana grande", "dua lipa", "olivia rodrigo", "selena gomez"),
+    "R&B": (
+        "sza",
+        "the weeknd",
+        "brent faiyaz",
+        "summer walker",
+        "frank ocean",
+        "kehlani",
+    ),
+    "Pop": (
+        "taylor swift",
+        "ariana grande",
+        "dua lipa",
+        "olivia rodrigo",
+        "selena gomez",
+    ),
     "Rock": ("foo fighters", "linkin park", "arctic monkeys", "paramore", "queen"),
     "Electronic": ("skrillex", "calvin harris", "fred again", "deadmau5", "odesza"),
     "Classical": ("mozart", "beethoven", "chopin", "bach", "vivaldi"),
-    "Jazz": ("miles davis", "john coltrane", "ella fitzgerald", "chet baker", "duke ellington"),
+    "Jazz": (
+        "miles davis",
+        "john coltrane",
+        "ella fitzgerald",
+        "chet baker",
+        "duke ellington",
+    ),
     "Lo-fi": ("jinsang", "nujabes", "tomppabeats", "idealism", "eevee"),
     "Indie": ("phoebe bridgers", "clairo", "beabadoobee", "the smiths", "mac demarco"),
 }
@@ -67,17 +94,25 @@ def merge_history_with_enrichment(
             {
                 "videoId": video_id,
                 "title": str(enrichment.get("title") or entry["title"]),
-                "artist": str(enrichment.get("artist") or "Unknown artist"),
-                "thumbnail": enrichment.get("thumbnail"),
-                "duration": str(enrichment.get("duration") or "PT0S"),
-                "tags": list(enrichment.get("tags") or []),
+                "artist": str(
+                    enrichment.get("artist") or entry.get("artist") or "Unknown artist"
+                ),
+                "thumbnail": enrichment.get("thumbnail") or entry.get("thumbnail"),
+                "duration": str(
+                    enrichment.get("duration") or entry.get("duration") or "PT0S"
+                ),
+                "tags": list(enrichment.get("tags") or entry.get("tags") or []),
                 "playCount": int(entry["playCount"]),
                 "timestamps": list(entry.get("timestamps") or []),
             }
         )
 
     enriched_history.sort(
-        key=lambda item: (-item["playCount"], item["artist"].lower(), item["title"].lower())
+        key=lambda item: (
+            -item["playCount"],
+            item["artist"].lower(),
+            item["title"].lower(),
+        )
     )
     return enriched_history
 
@@ -96,11 +131,17 @@ def classify_genre(tags: list[str], artist: str) -> str:
     return "Other"
 
 
-def build_genre_breakdown(enriched_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    genre_totals: dict[str, int] = {genre: 0 for genre in [*GENRE_KEYWORDS.keys(), "Other"]}
+def build_genre_breakdown(
+    enriched_history: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    genre_totals: dict[str, int] = {
+        genre: 0 for genre in [*GENRE_KEYWORDS.keys(), "Other"]
+    }
 
     for entry in enriched_history:
-        genre = classify_genre(list(entry.get("tags") or []), str(entry.get("artist") or ""))
+        genre = classify_genre(
+            list(entry.get("tags") or []), str(entry.get("artist") or "")
+        )
         genre_totals[genre] = genre_totals.get(genre, 0) + int(entry["playCount"])
 
     total_plays = sum(genre_totals.values())
@@ -163,7 +204,9 @@ def build_stats_payload(enriched_history: list[dict[str, Any]]) -> dict[str, Any
         artist = str(entry["artist"])
         play_count = int(entry["playCount"])
         artist_totals[artist] = artist_totals.get(artist, 0) + play_count
-        total_listening_minutes += duration_to_minutes(str(entry["duration"])) * play_count
+        total_listening_minutes += (
+            duration_to_minutes(str(entry["duration"])) * play_count
+        )
 
     top_artists = [
         {"artist": artist, "playCount": play_count}

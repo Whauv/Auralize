@@ -12,6 +12,8 @@ import requests
 
 from app.lastfm_api import build_lastfm_dashboard
 from app.parser import parse_watch_history
+from app.spotify_api import enrich_with_spotify_api
+from app.spotify_parser import parse_spotify_history
 from app.stats import (
     build_dashboard_payload,
     build_genre_breakdown,
@@ -28,7 +30,11 @@ app = FastAPI(title="Auralize API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,14 +55,20 @@ def healthcheck() -> dict[str, str]:
 
 
 async def parse_upload_file(file: UploadFile) -> list[dict[str, Any]]:
-    if file.content_type not in {"application/json", "text/json", "application/octet-stream"}:
+    if file.content_type not in {
+        "application/json",
+        "text/json",
+        "application/octet-stream",
+    }:
         raise HTTPException(status_code=400, detail="Please upload a JSON file.")
 
     try:
         raw_content = await file.read()
         payload = json.loads(raw_content)
     except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="Uploaded file is not valid JSON.") from exc
+        raise HTTPException(
+            status_code=400, detail="Uploaded file is not valid JSON."
+        ) from exc
 
     if not isinstance(payload, list):
         raise HTTPException(
@@ -67,9 +79,47 @@ async def parse_upload_file(file: UploadFile) -> list[dict[str, Any]]:
     return parse_watch_history(payload)
 
 
+async def parse_spotify_upload_file(file: UploadFile) -> list[dict[str, Any]]:
+    if file.content_type not in {
+        "application/json",
+        "text/json",
+        "application/octet-stream",
+    }:
+        raise HTTPException(status_code=400, detail="Please upload a JSON file.")
+
+    try:
+        raw_content = await file.read()
+        payload = json.loads(raw_content)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=400, detail="Uploaded file is not valid JSON."
+        ) from exc
+
+    try:
+        parsed = parse_spotify_history(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not parsed:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not parse Spotify listening entries. "
+                "Upload a Spotify StreamingHistory JSON file with track name, artist, and timestamp fields."
+            ),
+        )
+
+    return parsed
+
+
 @app.post("/api/upload")
 async def upload_watch_history(file: UploadFile = File(...)) -> list[dict[str, Any]]:
     return await parse_upload_file(file)
+
+
+@app.post("/api/spotify/upload")
+async def upload_spotify_history(file: UploadFile = File(...)) -> list[dict[str, Any]]:
+    return await parse_spotify_upload_file(file)
 
 
 def load_enriched_history(parsed_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -86,7 +136,37 @@ def load_enriched_history(parsed_history: list[dict[str, Any]]) -> list[dict[str
             detail = f"YouTube API request failed with status {response.status_code}."
         raise HTTPException(status_code=502, detail=detail) from exc
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Could not reach the YouTube Data API.") from exc
+        raise HTTPException(
+            status_code=502, detail="Could not reach the YouTube Data API."
+        ) from exc
+
+    return merge_history_with_enrichment(parsed_history, enriched_lookup)
+
+
+def load_spotify_enriched_history(
+    parsed_history: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    track_ids = [
+        str(entry["videoId"])
+        for entry in parsed_history
+        if str(entry.get("videoId") or "")
+        and not str(entry.get("videoId") or "").startswith("spotify-local:")
+    ]
+
+    try:
+        enriched_lookup = enrich_with_spotify_api(track_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except requests.HTTPError as exc:
+        response = exc.response
+        detail = "Spotify API request failed."
+        if response is not None:
+            detail = f"Spotify API request failed with status {response.status_code}."
+        raise HTTPException(status_code=502, detail=detail) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502, detail="Could not reach the Spotify Web API."
+        ) from exc
 
     return merge_history_with_enrichment(parsed_history, enriched_lookup)
 
@@ -98,11 +178,23 @@ async def get_watch_history_stats(file: UploadFile = File(...)) -> dict[str, Any
     return build_stats_payload(enriched_history)
 
 
+@app.post("/api/spotify/dashboard")
+async def get_spotify_dashboard(file: UploadFile = File(...)) -> dict[str, Any]:
+    parsed_history = await parse_spotify_upload_file(file)
+    enriched_history = load_spotify_enriched_history(parsed_history)
+    return build_dashboard_payload(
+        enriched_history,
+        source="spotify-takeout",
+    )
+
+
 @app.post("/api/lastfm")
 async def get_lastfm_dashboard(payload: LastFmRequest) -> dict[str, Any]:
     username = payload.username.strip()
     if not username:
-        raise HTTPException(status_code=400, detail="Please provide a Last.fm username.")
+        raise HTTPException(
+            status_code=400, detail="Please provide a Last.fm username."
+        )
 
     try:
         lastfm_dashboard = build_lastfm_dashboard(username)
@@ -115,7 +207,9 @@ async def get_lastfm_dashboard(payload: LastFmRequest) -> dict[str, Any]:
             detail = f"Last.fm API request failed with status {response.status_code}."
         raise HTTPException(status_code=502, detail=detail) from exc
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Could not reach the Last.fm API.") from exc
+        raise HTTPException(
+            status_code=502, detail="Could not reach the Last.fm API."
+        ) from exc
 
     return build_dashboard_payload(
         lastfm_dashboard["rawEnrichedHistory"],
@@ -126,10 +220,14 @@ async def get_lastfm_dashboard(payload: LastFmRequest) -> dict[str, Any]:
 
 
 @app.post("/api/youtube-profile")
-async def get_youtube_profile_dashboard(payload: YouTubeProfileRequest) -> dict[str, Any]:
+async def get_youtube_profile_dashboard(
+    payload: YouTubeProfileRequest,
+) -> dict[str, Any]:
     profile_url = payload.url.strip()
     if not profile_url:
-        raise HTTPException(status_code=400, detail="Please provide a YouTube Music profile link.")
+        raise HTTPException(
+            status_code=400, detail="Please provide a YouTube Music profile link."
+        )
 
     try:
         profile = fetch_youtube_music_profile(profile_url)
@@ -142,7 +240,9 @@ async def get_youtube_profile_dashboard(payload: YouTubeProfileRequest) -> dict[
             detail = f"YouTube Music profile request failed with status {response.status_code}."
         raise HTTPException(status_code=502, detail=detail) from exc
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Could not reach YouTube Music.") from exc
+        raise HTTPException(
+            status_code=502, detail="Could not reach YouTube Music."
+        ) from exc
 
     payload = build_dashboard_payload(
         [],
