@@ -1,11 +1,9 @@
 import { Section } from "./DashboardBits";
 import type {
   RecapThemePack,
-  RecapVariant,
   SavedSession,
-  TimeframeOption,
 } from "../lib/types";
-import { RECAP_VARIANT_LABELS, TIMEFRAME_COMPARE_OPTIONS, TIMEFRAME_LABELS } from "../lib/utils";
+import { TIMEFRAME_LABELS } from "../lib/utils";
 
 type DashboardDensity = "simple" | "full";
 
@@ -14,23 +12,11 @@ type DashboardControlPanelProps = {
   isYoutubeProfileMode: boolean;
   dashboardDensity: DashboardDensity;
   onDashboardDensityChange: (mode: DashboardDensity) => void;
-  compareTimeframe: TimeframeOption;
-  onCompareTimeframeChange: (timeframe: TimeframeOption) => void;
-  timeframe: TimeframeOption;
-  currentStatsLabel: string;
-  comparisonHoursLabel: string;
-  comparisonMinutesDeltaLabel: string;
-  comparisonTopArtist: string;
-  currentTopArtist: string;
-  comparisonTopGenre: string;
-  currentTopGenre: string;
   savedSessions: SavedSession[];
   onSaveSession: () => void;
   onRestoreSession: (session: SavedSession) => void;
   onDeleteSession: (sessionId: string) => void;
   onScrollToSection: (sectionId: string) => void;
-  recapVariant: RecapVariant;
-  onRecapVariantChange: (variant: RecapVariant) => void;
   recapTheme: RecapThemePack;
   onRecapThemeChange: (theme: RecapThemePack) => void;
   onOpenRecap: () => void;
@@ -41,23 +27,11 @@ export function DashboardControlPanel({
   isYoutubeProfileMode,
   dashboardDensity,
   onDashboardDensityChange,
-  compareTimeframe,
-  onCompareTimeframeChange,
-  timeframe,
-  currentStatsLabel,
-  comparisonHoursLabel,
-  comparisonMinutesDeltaLabel,
-  comparisonTopArtist,
-  currentTopArtist,
-  comparisonTopGenre,
-  currentTopGenre,
   savedSessions,
   onSaveSession,
   onRestoreSession,
   onDeleteSession,
   onScrollToSection,
-  recapVariant,
-  onRecapVariantChange,
   recapTheme,
   onRecapThemeChange,
   onOpenRecap,
@@ -91,61 +65,6 @@ export function DashboardControlPanel({
             <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
               {dashboardDensity === "simple" ? "Core story only" : "Deeper analytics unlocked"}
             </span>
-          </div>
-        </Section>
-      ) : null}
-
-      {!isYoutubeProfileMode ? (
-        <Section
-          title="Compare View"
-          subtitle="Compare the current dashboard window against another timeframe from the same listening archive."
-        >
-          <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="grid gap-3">
-              <label className="grid gap-2">
-                <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                  Comparison timeframe
-                </span>
-                <select
-                  className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
-                  onChange={(event) =>
-                    onCompareTimeframeChange(event.target.value as TimeframeOption)
-                  }
-                  value={compareTimeframe}
-                >
-                  {TIMEFRAME_COMPARE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {TIMEFRAME_LABELS[option]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Current window</p>
-                <p className="mt-3 text-2xl font-semibold text-white">
-                  {TIMEFRAME_LABELS[timeframe]}
-                </p>
-                <p className="mt-2 text-sm text-[#9CA3AF]">{currentStatsLabel}</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Listening time</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{comparisonHoursLabel}</p>
-                <p className="mt-2 text-sm text-[#9CA3AF]">{comparisonMinutesDeltaLabel}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top artist</p>
-                <p className="mt-3 text-xl font-semibold text-white">{comparisonTopArtist}</p>
-                <p className="mt-2 text-sm text-[#9CA3AF]">Current: {currentTopArtist}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#1E293B] bg-[#0F172A] p-5">
-                <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Top genre</p>
-                <p className="mt-3 text-xl font-semibold text-white">{comparisonTopGenre}</p>
-                <p className="mt-2 text-sm text-[#9CA3AF]">Current: {currentTopGenre}</p>
-              </div>
-            </div>
           </div>
         </Section>
       ) : null}
@@ -249,22 +168,6 @@ export function DashboardControlPanel({
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2">
                   <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
-                    Recap Variant
-                  </span>
-                  <select
-                    className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
-                    onChange={(event) => onRecapVariantChange(event.target.value as RecapVariant)}
-                    value={recapVariant}
-                  >
-                    {(Object.keys(RECAP_VARIANT_LABELS) as RecapVariant[]).map((variant) => (
-                      <option key={variant} value={variant}>
-                        {RECAP_VARIANT_LABELS[variant]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
                     Theme Pack
                   </span>
                   <select
@@ -289,7 +192,7 @@ export function DashboardControlPanel({
                   Launch recap
                 </button>
                 <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
-                  variant-aware chapters
+                  timeframe-aware chapters
                 </span>
                 <span className="rounded-full border border-[#1E293B] bg-[#111827] px-4 py-3 text-sm text-[#9CA3AF]">
                   embedded audio mode
