@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from typing import Any
 
 import requests
@@ -14,7 +15,7 @@ from fastapi import HTTPException, UploadFile
 
 ANALYSIS_CACHE_TTL = 60 * 60 * 12
 ENRICHED_HISTORY_CACHE_TTL = 60 * 60 * 6
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_UPLOAD_BYTES = int(os.getenv("AURALIZE_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))
 
 
 def build_takeout_analysis_response(
