@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -38,11 +39,23 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 UPLOAD_FILE = File(...)
 REQUEST_CACHE_TTL = 60 * 30
 
+
+def build_allowed_origins() -> list[str]:
+    configured = os.getenv("AURALIZE_CORS_ORIGINS", "").strip()
+    if not configured:
+        return [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:4173",
+        ]
+    return [origin.strip().rstrip("/") for origin in configured.split(",") if origin.strip()]
+
 app = FastAPI(title="Auralize API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"],
+    allow_origins=build_allowed_origins(),
+    allow_origin_regex=os.getenv("AURALIZE_CORS_ORIGIN_REGEX") or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
