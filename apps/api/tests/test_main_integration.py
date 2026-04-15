@@ -92,16 +92,17 @@ class MainIntegrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
 
     def test_upload_rejects_too_large_file(self) -> None:
-        response = self.client.post(
-            "/api/upload",
-            files={
-                "file": (
-                    "watch-history.json",
-                    b"x" * (10 * 1024 * 1024 + 1),
-                    "application/json",
-                )
-            },
-        )
+        with patch("app.services.analysis.MAX_UPLOAD_BYTES", 1024):
+            response = self.client.post(
+                "/api/upload",
+                files={
+                    "file": (
+                        "watch-history.json",
+                        b"x" * 1025,
+                        "application/json",
+                    )
+                },
+            )
 
         self.assertEqual(response.status_code, 413)
 
