@@ -43,6 +43,8 @@ python -m uvicorn app.main:app --reload
 
 API: `http://localhost:8000`
 
+Diagnostics endpoint: `http://localhost:8000/api/config-check`
+
 ### Frontend
 
 ```powershell
@@ -65,7 +67,15 @@ Required variables:
 ```env
 YOUTUBE_API_KEY=
 LASTFM_API_KEY=
+AURALIZE_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+AURALIZE_CORS_ORIGIN_REGEX=
+AURALIZE_MAX_UPLOAD_BYTES=52428800
+AURALIZE_MAX_DECOMPRESSED_UPLOAD_BYTES=209715200
 VITE_API_BASE_URL=http://localhost:8000
+VITE_MAX_UPLOAD_BYTES=52428800
+VITE_ANALYSIS_JOB_TIMEOUT_MS=180000
+VITE_ANALYSIS_JOB_POLL_INTERVAL_MS=650
+VITE_ANALYSIS_JOB_POLL_MAX_RETRIES=3
 ```
 
 ## Validation

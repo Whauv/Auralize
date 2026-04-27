@@ -150,7 +150,7 @@ export function SourceStudio({
                   <label className="cursor-pointer rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.02] hover:bg-[#F0D080]">
                     Choose file
                     <input
-                      accept=".json,application/json"
+                      accept=".json,.gz,application/json,application/gzip,application/x-gzip"
                       className="sr-only"
                       onChange={onFileChange}
                       type="file"
@@ -224,7 +224,7 @@ export function SourceStudio({
                 <label className="cursor-pointer rounded-full border border-[#D4A853] bg-[#D4A853] px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.02] hover:bg-[#F0D080]">
                   Choose file
                   <input
-                    accept=".json,application/json"
+                    accept=".json,.gz,application/json,application/gzip,application/x-gzip"
                     className="sr-only"
                     onChange={onFileChange}
                     type="file"
@@ -344,7 +344,15 @@ export function SourceStudio({
               ) : null}
               {sourceMode === "takeout" ? (
                 <p className="text-xs text-[#9CA3AF]">
-                  The button uses your file if one is selected. Otherwise, it uses the
+                  Supports
+                  {" "}
+                  <code>watch-history.json</code>
+                  {" "}
+                  and
+                  {" "}
+                  <code>watch-history.json.gz</code>
+                  {" "}
+                  files. The button uses your file if one is selected. Otherwise, it uses the
                   YouTube Music profile link.
                 </p>
               ) : sourceMode === "apple-music" ? (

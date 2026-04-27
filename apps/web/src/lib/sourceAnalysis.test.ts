@@ -185,6 +185,55 @@ describe("source analysis helpers", () => {
     expect(utilsMocks.postJson).toHaveBeenCalledWith("/lastfm", { username: "prana" });
   });
 
+  it("rejects oversized files before uploading", async () => {
+    const oversizedFile = { size: 60 * 1024 * 1024 } as File;
+
+    await expect(analyzeTakeout(oversizedFile)).rejects.toThrow("Max supported in this deployment");
+    expect(utilsMocks.postFile).not.toHaveBeenCalled();
+  });
+
+  it("retries polling on transient failures", async () => {
+    const payload: DashboardUploadResponse = {
+      entries: [],
+      quality: {
+        totalEntries: 1,
+        usableEntries: 1,
+        searchEntries: 0,
+        youtubeMusicEntries: 1,
+        warnings: [],
+      },
+      dashboard: {
+        source: "takeout",
+        username: null,
+        stats: {
+          topSongs: [],
+          topArtists: [],
+          totalListeningMinutes: 0,
+          rawEnrichedHistory: [],
+        },
+        genreBreakdown: [],
+        moodTimeline: [],
+        profileSummary: null,
+      },
+    };
+    const file = new File(["[]"], "watch-history.json", { type: "application/json" });
+    utilsMocks.postFile.mockResolvedValue({ jobId: "job-retry" });
+    utilsMocks.getJson
+      .mockRejectedValueOnce(new Error("temporary network issue"))
+      .mockResolvedValueOnce({
+        id: "job-retry",
+        source: "takeout",
+        status: "complete",
+        progress: 100,
+        message: "Complete",
+        result: payload,
+        error: null,
+      });
+
+    await expect(analyzeTakeout(file)).resolves.toEqual({ payload });
+    expect(utilsMocks.getJson).toHaveBeenCalledTimes(2);
+  });
+
   it("throws helpful validation errors for missing inputs", async () => {
     utilsMocks.parseYoutubeMusicProfileUrl.mockReturnValue(null);
     utilsMocks.parseLastFmUsername.mockReturnValue(null);

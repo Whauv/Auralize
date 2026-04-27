@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import gzip
+import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -21,10 +23,25 @@ class MainIntegrationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
+        self.assertTrue(response.headers["x-request-id"])
         self.assertEqual(response.headers["x-content-type-options"], "nosniff")
         self.assertEqual(response.headers["x-frame-options"], "DENY")
         self.assertEqual(response.headers["referrer-policy"], "no-referrer")
         self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_config_check_exposes_safe_runtime_diagnostics(self) -> None:
+        response = self.client.get("/api/config-check")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("cors", payload)
+        self.assertIn("upload", payload)
+        self.assertIn("integrations", payload)
+        self.assertIn("envIssues", payload)
+        self.assertIn("maxUploadBytes", payload["upload"])
+        self.assertIn("maxDecompressedUploadBytes", payload["upload"])
+        self.assertIn("youtubeApiConfigured", payload["integrations"])
+        self.assertIn("lastfmApiConfigured", payload["integrations"])
 
     def test_analyze_uses_parse_and_builder_contract(self) -> None:
         parse_result = (
@@ -100,6 +117,50 @@ class MainIntegrationTests(unittest.TestCase):
                         "watch-history.json",
                         b"x" * 1025,
                         "application/json",
+                    )
+                },
+            )
+
+        self.assertEqual(response.status_code, 413)
+
+    def test_upload_accepts_gzipped_watch_history_json(self) -> None:
+        payload = [
+            {
+                "header": "YouTube Music",
+                "title": "Watched Test Song",
+                "titleUrl": "https://music.youtube.com/watch?v=test123",
+                "time": "2026-01-01T00:00:00Z",
+            }
+        ]
+        compressed_payload = gzip.compress(json.dumps(payload).encode("utf-8"))
+        response = self.client.post(
+            "/api/upload",
+            files={
+                "file": (
+                    "watch-history.json.gz",
+                    compressed_payload,
+                    "application/gzip",
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(len(body["entries"]), 1)
+        self.assertEqual(body["entries"][0]["videoId"], "test123")
+
+    def test_upload_rejects_oversized_decompressed_payload(self) -> None:
+        payload = [{"title": "Watched Song", "titleUrl": "https://music.youtube.com/watch?v=x"}]
+        compressed_payload = gzip.compress(json.dumps(payload).encode("utf-8"))
+
+        with patch("app.services.analysis.MAX_DECOMPRESSED_UPLOAD_BYTES", 20):
+            response = self.client.post(
+                "/api/upload",
+                files={
+                    "file": (
+                        "watch-history.json.gz",
+                        compressed_payload,
+                        "application/gzip",
                     )
                 },
             )

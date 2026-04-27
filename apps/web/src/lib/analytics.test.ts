@@ -32,6 +32,34 @@ const baseEntries = [
   },
 ];
 
+const timeframeEntries = [
+  {
+    videoId: "recent",
+    title: "Recent Pulse",
+    artist: "Artist Recent",
+    thumbnail: null,
+    duration: "PT3M0S",
+    tags: ["pop"],
+    playCount: 4,
+    timestamps: [
+      "2026-04-04T03:00:00Z",
+      "2026-03-10T04:00:00Z",
+      "2026-01-10T14:00:00Z",
+      "2025-05-01T08:00:00Z",
+    ],
+  },
+  {
+    videoId: "old",
+    title: "Old Echo",
+    artist: "Artist Old",
+    thumbnail: null,
+    duration: "PT2M0S",
+    tags: ["rock"],
+    playCount: 1,
+    timestamps: ["2024-01-01T12:00:00Z"],
+  },
+];
+
 describe("analytics helpers", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -57,9 +85,26 @@ describe("analytics helpers", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-05T12:00:00Z"));
 
-    const filtered = filterHistoryByTimeframe(baseEntries, "30d");
-    expect(filtered).toHaveLength(2);
-    expect(filtered[0].playCount).toBeGreaterThanOrEqual(1);
+    const last30Days = filterHistoryByTimeframe(timeframeEntries, "30d");
+    const last90Days = filterHistoryByTimeframe(timeframeEntries, "90d");
+    const lastYear = filterHistoryByTimeframe(timeframeEntries, "365d");
+    const allTime = filterHistoryByTimeframe(timeframeEntries, "all");
+
+    expect(last30Days).toHaveLength(1);
+    expect(last30Days[0].videoId).toBe("recent");
+    expect(last30Days[0].playCount).toBe(2);
+
+    expect(last90Days).toHaveLength(1);
+    expect(last90Days[0].videoId).toBe("recent");
+    expect(last90Days[0].playCount).toBe(3);
+
+    expect(lastYear).toHaveLength(1);
+    expect(lastYear[0].videoId).toBe("recent");
+    expect(lastYear[0].playCount).toBe(4);
+
+    expect(allTime).toHaveLength(2);
+    expect(allTime[0].videoId).toBe("recent");
+    expect(allTime[1].videoId).toBe("old");
   });
 
   it("builds passport and playlist views from shared stats", () => {
