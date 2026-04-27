@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import json
 import os
 from typing import Any
@@ -15,7 +16,27 @@ from fastapi import HTTPException, UploadFile
 
 ANALYSIS_CACHE_TTL = 60 * 60 * 12
 ENRICHED_HISTORY_CACHE_TTL = 60 * 60 * 6
-MAX_UPLOAD_BYTES = int(os.getenv("AURALIZE_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))
+DEFAULT_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+DEFAULT_MAX_DECOMPRESSED_UPLOAD_BYTES = 200 * 1024 * 1024
+
+
+def _load_size_limit_env(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return default
+    return parsed_value if parsed_value > 0 else default
+
+
+MAX_UPLOAD_BYTES = _load_size_limit_env("AURALIZE_MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES)
+MAX_DECOMPRESSED_UPLOAD_BYTES = _load_size_limit_env(
+    "AURALIZE_MAX_DECOMPRESSED_UPLOAD_BYTES",
+    DEFAULT_MAX_DECOMPRESSED_UPLOAD_BYTES,
+)
+GZIP_MAGIC_HEADER = b"\x1f\x8b"
 
 
 def build_takeout_analysis_response(
@@ -124,7 +145,16 @@ def load_payload_from_bytes(
     raw_content: bytes,
     content_type: str | None,
 ) -> tuple[list[dict[str, Any]], str]:
-    if content_type not in {"application/json", "text/json", "application/octet-stream"}:
+    normalized_type = (content_type or "").split(";")[0].strip().lower()
+    allowed_content_types = {
+        "",
+        "application/json",
+        "text/json",
+        "application/octet-stream",
+        "application/gzip",
+        "application/x-gzip",
+    }
+    if normalized_type not in allowed_content_types:
         raise HTTPException(status_code=400, detail="Please upload a JSON file.")
 
     try:
@@ -132,7 +162,23 @@ def load_payload_from_bytes(
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
         if len(raw_content) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="Uploaded file is too large.")
-        payload = json.loads(raw_content)
+
+        content_bytes = raw_content
+        if raw_content.startswith(GZIP_MAGIC_HEADER):
+            try:
+                content_bytes = gzip.decompress(raw_content)
+            except OSError as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Uploaded file looks gzipped but could not be decompressed.",
+                ) from exc
+            if len(content_bytes) > MAX_DECOMPRESSED_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Uploaded file is too large after decompression.",
+                )
+
+        payload = json.loads(content_bytes)
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail="Uploaded file is not valid JSON.") from exc
 
@@ -142,7 +188,7 @@ def load_payload_from_bytes(
             detail="Expected watch-history.json to contain a JSON array of history entries.",
         )
 
-    return payload, sha256_digest(raw_content)
+    return payload, sha256_digest(content_bytes)
 
 
 async def load_upload_payload(file: UploadFile) -> tuple[list[dict[str, Any]], str]:

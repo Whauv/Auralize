@@ -35,4 +35,11 @@ describe("network helpers", () => {
 
     await expect(postJson("/lastfm", { username: "prana" })).rejects.toThrow("Bad request");
   });
+
+  it("throws a deployment-oriented message when fetch fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(postFile("/jobs/analyze?source=takeout", new File(["[]"], "watch-history.json")))
+      .rejects.toThrow("Couldn't reach the API");
+  });
 });

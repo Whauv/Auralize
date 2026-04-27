@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
@@ -16,6 +18,8 @@ except ImportError:  # pragma: no cover - optional at runtime
 
 from app.services.analysis import (
     ANALYSIS_CACHE_TTL,
+    MAX_DECOMPRESSED_UPLOAD_BYTES,
+    MAX_UPLOAD_BYTES,
     build_takeout_analysis_response,
     load_enriched_history,
     parse_apple_music_upload_file,
@@ -38,6 +42,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 UPLOAD_FILE = File(...)
 REQUEST_CACHE_TTL = 60 * 30
+LOGGER = logging.getLogger("auralize.api")
 
 
 def build_allowed_origins() -> list[str]:
@@ -49,6 +54,63 @@ def build_allowed_origins() -> list[str]:
             "http://localhost:4173",
         ]
     return [origin.strip().rstrip("/") for origin in configured.split(",") if origin.strip()]
+
+
+def _parse_positive_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    try:
+        parsed = int(normalized)
+    except ValueError:
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def build_runtime_config_report() -> dict[str, Any]:
+    allowed_origins = build_allowed_origins()
+    origin_regex = os.getenv("AURALIZE_CORS_ORIGIN_REGEX") or None
+    youtube_key = os.getenv("YOUTUBE_API_KEY", "").strip()
+    lastfm_key = os.getenv("LASTFM_API_KEY", "").strip()
+    configured_upload_limit = _parse_positive_int(os.getenv("AURALIZE_MAX_UPLOAD_BYTES"))
+    configured_decompressed_limit = _parse_positive_int(
+        os.getenv("AURALIZE_MAX_DECOMPRESSED_UPLOAD_BYTES")
+    )
+    env_issues: list[str] = []
+
+    if not allowed_origins and not origin_regex:
+        env_issues.append("CORS is not configured.")
+    if not youtube_key:
+        env_issues.append("YOUTUBE_API_KEY is missing.")
+    if not lastfm_key:
+        env_issues.append("LASTFM_API_KEY is missing.")
+    if os.getenv("AURALIZE_MAX_UPLOAD_BYTES") is not None and configured_upload_limit is None:
+        env_issues.append("AURALIZE_MAX_UPLOAD_BYTES is invalid.")
+    if (
+        os.getenv("AURALIZE_MAX_DECOMPRESSED_UPLOAD_BYTES") is not None
+        and configured_decompressed_limit is None
+    ):
+        env_issues.append("AURALIZE_MAX_DECOMPRESSED_UPLOAD_BYTES is invalid.")
+
+    return {
+        "cors": {
+            "allowedOrigins": allowed_origins,
+            "originRegex": origin_regex,
+        },
+        "upload": {
+            "maxUploadBytes": MAX_UPLOAD_BYTES,
+            "maxDecompressedUploadBytes": MAX_DECOMPRESSED_UPLOAD_BYTES,
+        },
+        "integrations": {
+            "youtubeApiConfigured": bool(youtube_key),
+            "lastfmApiConfigured": bool(lastfm_key),
+        },
+        "envIssues": env_issues,
+    }
 
 app = FastAPI(title="Auralize API")
 
@@ -64,7 +126,9 @@ app.add_middleware(
 
 @app.middleware("http")
 async def set_security_headers(request: Any, call_next: Any) -> Any:
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
     response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -110,9 +174,23 @@ class AnalysisJobRequest(BaseModel):
     source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout"
 
 
+@app.on_event("startup")
+def log_runtime_config() -> None:
+    report = build_runtime_config_report()
+    if report["envIssues"]:
+        LOGGER.warning("Runtime config issues: %s", ", ".join(report["envIssues"]))
+    else:
+        LOGGER.info("Runtime config looks healthy.")
+
+
 @app.get("/api/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/config-check")
+def config_check() -> dict[str, Any]:
+    return build_runtime_config_report()
 
 
 @app.post("/api/upload")
