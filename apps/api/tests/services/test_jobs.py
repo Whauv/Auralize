@@ -8,7 +8,9 @@ from fastapi import HTTPException
 
 class AnalysisJobStoreTests(unittest.TestCase):
     def test_safe_error_message_for_http_exception_uses_detail(self) -> None:
-        error = AnalysisJobStore._safe_error_message(HTTPException(status_code=400, detail="Bad input"))
+        error = AnalysisJobStore._safe_error_message(
+            HTTPException(status_code=400, detail="Bad input")
+        )
         self.assertEqual(error, "Bad input")
 
     def test_safe_error_message_for_unexpected_exception_is_sanitized(self) -> None:
