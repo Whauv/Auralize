@@ -8,7 +8,8 @@ from typing import Any
 
 import requests
 
-LASTFM_API_ENDPOINT = "http://ws.audioscrobbler.com/2.0/"
+LASTFM_API_ENDPOINT = "https://ws.audioscrobbler.com/2.0/"
+LASTFM_TIMEOUT_SECONDS = 20
 
 
 def require_lastfm_api_key() -> str:
@@ -28,7 +29,7 @@ def call_lastfm(method: str, username: str, limit: int) -> dict[str, Any]:
             "format": "json",
             "limit": limit,
         },
-        timeout=30,
+        timeout=LASTFM_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
     payload = response.json()
@@ -77,7 +78,10 @@ def build_lastfm_dashboard(username: str) -> dict[str, Any]:
         date_info = track.get("date") or {}
         unix_timestamp = str(date_info.get("uts") or "").strip()
         if unix_timestamp:
-            timestamp = datetime.fromtimestamp(int(unix_timestamp), tz=UTC)
+            try:
+                timestamp = datetime.fromtimestamp(int(unix_timestamp), tz=UTC)
+            except (TypeError, ValueError, OSError):
+                continue
             recent_timestamps[track_id].append(timestamp.isoformat().replace("+00:00", "Z"))
         recent_images[track_id] = pick_lastfm_image(track.get("image") or [])
 

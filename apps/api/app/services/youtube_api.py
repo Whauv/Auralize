@@ -101,8 +101,13 @@ def load_cache() -> dict[str, dict[str, Any]]:
 
 
 def save_cache(cache: dict[str, dict[str, Any]]) -> None:
-    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_PATH.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    try:
+        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = CACHE_PATH.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+        temp_path.replace(CACHE_PATH)
+    except OSError:
+        return
 
 
 def request_video_batch(batch: list[str], api_key: str) -> dict[str, Any]:
