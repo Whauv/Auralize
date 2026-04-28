@@ -12,6 +12,9 @@ import type { MusicPassportData } from "../components/MusicPassportCard";
 import { PROFILE_SHARE_PARAM, SHARE_PARAM, TIMEFRAME_LABELS } from "./constants";
 import { getLongestListeningStreak } from "./analytics";
 
+const MAX_ENCODED_SHARE_PAYLOAD_LENGTH = 350_000;
+const MAX_DECODED_SHARE_PAYLOAD_BYTES = 250_000;
+
 function encodeBase64(value: string): string {
   if (typeof globalThis.btoa === "function") {
     return globalThis.btoa(value);
@@ -41,7 +44,13 @@ export function encodeSharePayload(payload: MusicPassportData): string {
 }
 
 export function decodeSharePayload(value: string): MusicPassportData {
+  if (value.length > MAX_ENCODED_SHARE_PAYLOAD_LENGTH) {
+    throw new Error("Shared payload is too large.");
+  }
   const binary = decodeBase64(value);
+  if (binary.length > MAX_DECODED_SHARE_PAYLOAD_BYTES) {
+    throw new Error("Shared payload is too large.");
+  }
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
   return JSON.parse(new TextDecoder().decode(bytes)) as MusicPassportData;
 }
@@ -59,7 +68,13 @@ export function encodePublicProfilePayload(payload: PublicProfileSharePayload): 
 }
 
 export function decodePublicProfilePayload(value: string): PublicProfileSharePayload {
+  if (value.length > MAX_ENCODED_SHARE_PAYLOAD_LENGTH) {
+    throw new Error("Shared profile payload is too large.");
+  }
   const binary = decodeBase64(value);
+  if (binary.length > MAX_DECODED_SHARE_PAYLOAD_BYTES) {
+    throw new Error("Shared profile payload is too large.");
+  }
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
   return JSON.parse(new TextDecoder().decode(bytes)) as PublicProfileSharePayload;
 }

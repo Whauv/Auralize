@@ -27,6 +27,10 @@ describe("identity and sharing helpers", () => {
     expect(decodeSharePayload(encodeSharePayload(passport))).toEqual(passport);
   });
 
+  it("rejects oversized shared payloads", () => {
+    expect(() => decodeSharePayload("a".repeat(400_001))).toThrow("Shared payload is too large.");
+  });
+
   it("builds stable saved session metadata", () => {
     const dashboard: DashboardResponse = {
       source: "lastfm",

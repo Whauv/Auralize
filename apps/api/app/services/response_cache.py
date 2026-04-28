@@ -73,7 +73,9 @@ class ResponseCache:
                 for key, (expires_at, value) in self._store.items()
                 if expires_at >= time.time()
             }
-            DISK_CACHE_PATH.write_text(json.dumps(payload), encoding="utf-8")
+            temp_path = DISK_CACHE_PATH.with_suffix(".tmp")
+            temp_path.write_text(json.dumps(payload), encoding="utf-8")
+            temp_path.replace(DISK_CACHE_PATH)
         except (OSError, TypeError, ValueError):
             return
 
