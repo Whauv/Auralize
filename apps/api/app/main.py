@@ -30,13 +30,13 @@ from app.services.analysis import (
 from app.services.jobs import analysis_jobs
 from app.services.lastfm_api import build_lastfm_dashboard
 from app.services.response_cache import response_cache
-from app.services.upload_sessions import upload_sessions
 from app.services.stats import (
     build_dashboard_payload,
     build_genre_breakdown,
     build_mood_timeline,
     build_stats_payload,
 )
+from app.services.upload_sessions import upload_sessions
 from app.services.youtube_profile import fetch_youtube_music_profile
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -263,7 +263,11 @@ def init_upload_session(payload: UploadInitRequest) -> dict[str, str]:
 
 
 @app.post("/api/uploads/{upload_id}/chunk")
-async def append_upload_chunk(upload_id: str, index: int, file: UploadFile = UPLOAD_FILE) -> dict[str, str]:
+async def append_upload_chunk(
+    upload_id: str,
+    index: int,
+    file: UploadFile = UPLOAD_FILE,
+) -> dict[str, str]:
     chunk = await file.read()
     upload_sessions.add_chunk(upload_id, index=index, data=chunk)
     return {"status": "ok"}

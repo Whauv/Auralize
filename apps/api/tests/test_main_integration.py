@@ -104,7 +104,10 @@ class MainIntegrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
 
     def test_youtube_profile_rejects_non_music_url(self) -> None:
-        response = self.client.post("/api/youtube-profile", json={"url": "https://youtube.com/@demo"})
+        response = self.client.post(
+            "/api/youtube-profile",
+            json={"url": "https://youtube.com/@demo"},
+        )
 
         self.assertEqual(response.status_code, 422)
 
@@ -239,7 +242,9 @@ class MainIntegrationTests(unittest.TestCase):
         self.assertEqual(chunk_response.status_code, 200)
 
         with patch("app.main.analysis_jobs.start", return_value="job-from-upload") as start_mock:
-            job_response = self.client.post(f"/api/jobs/analyze?source=takeout&uploadId={upload_id}")
+            job_response = self.client.post(
+                f"/api/jobs/analyze?source=takeout&uploadId={upload_id}"
+            )
 
         self.assertEqual(job_response.status_code, 200)
         self.assertEqual(job_response.json(), {"jobId": "job-from-upload"})
