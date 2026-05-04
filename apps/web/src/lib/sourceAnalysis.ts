@@ -303,7 +303,7 @@ function assertUploadSize(file: File, label: string): void {
 }
 
 function hasExtension(fileName: string, expected: string[]): boolean {
-  const lower = fileName.toLowerCase();
+  const lower = (fileName || "").toLowerCase();
   return expected.some((suffix) => lower.endsWith(suffix));
 }
 
