@@ -42,6 +42,7 @@ from app.services.youtube_profile import fetch_youtube_music_profile
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 UPLOAD_FILE = File(...)
+OPTIONAL_UPLOAD_FILE = File(default=None)
 REQUEST_CACHE_TTL = 60 * 30
 LOGGER = logging.getLogger("auralize.api")
 
@@ -231,7 +232,7 @@ async def analyze_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any
 @app.post("/api/jobs/analyze")
 async def start_analysis_job(
     source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout",
-    file: UploadFile | None = File(default=None),
+    file: UploadFile | None = OPTIONAL_UPLOAD_FILE,
     uploadId: str | None = None,
 ) -> dict[str, str]:
     if uploadId:
