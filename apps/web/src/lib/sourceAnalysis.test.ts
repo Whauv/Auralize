@@ -193,7 +193,10 @@ describe("source analysis helpers", () => {
   });
 
   it("rejects oversized files before uploading", async () => {
-    const oversizedFile = { size: 60 * 1024 * 1024 } as File;
+    const oversizedFile = {
+      name: "watch-history.json",
+      size: 60 * 1024 * 1024,
+    } as File;
 
     await expect(analyzeTakeout(oversizedFile)).rejects.toThrow("Max supported in this deployment");
     expect(utilsMocks.postFile).not.toHaveBeenCalled();
