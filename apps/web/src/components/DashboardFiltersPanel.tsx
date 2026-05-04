@@ -37,6 +37,7 @@ export function DashboardFiltersPanel({
     <Section
       title="Search And Filters"
       subtitle="Slice the dashboard by song search, artist, genre, or mood and let the rest of the page update with it."
+      className="filters-anchored"
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="grid gap-2">

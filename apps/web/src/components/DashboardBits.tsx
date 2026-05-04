@@ -22,20 +22,20 @@ export function Section({
 }) {
   return (
     <motion.section
-      className={`section-panel rounded-[2rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur ${className}`}
+      className={`section-panel border-t border-[var(--panel-border,#1E293B)] px-1 py-8 ${className}`}
       initial={{ opacity: 0, y: 28 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <div className="mb-5 flex flex-col gap-1">
+      <div className="section-head mb-4 flex flex-col gap-1">
         <p className="text-xs uppercase tracking-[0.35em] text-[#F59E0B]">
           Insight
         </p>
         <h2 className="font-display text-[1.9rem] leading-[0.96] text-[var(--heading,#FFFFFF)]">{title}</h2>
         <p className="font-body text-sm leading-6 text-[var(--subtext,#9CA3AF)]">{subtitle}</p>
       </div>
-      {children}
+      <div className="section-body">{children}</div>
     </motion.section>
   );
 }
