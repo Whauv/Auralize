@@ -231,7 +231,7 @@ async def analyze_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any
 @app.post("/api/jobs/analyze")
 async def start_analysis_job(
     source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout",
-    file: UploadFile | None = None,
+    file: UploadFile | None = File(default=None),
     uploadId: str | None = None,
 ) -> dict[str, str]:
     if uploadId:
