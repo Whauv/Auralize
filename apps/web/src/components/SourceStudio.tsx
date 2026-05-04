@@ -38,6 +38,7 @@ function SourceModeButton({
 }) {
   return (
     <button
+      aria-pressed={isActive}
       className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
         isActive
           ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
@@ -373,8 +374,16 @@ export function SourceStudio({
           )}
 
           {isUploading ? loadingIndicator : null}
-          {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-          {actionMessage ? <p className="text-sm text-[#F0D080]">{actionMessage}</p> : null}
+          {error ? (
+            <p aria-live="assertive" className="text-sm text-rose-300" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {actionMessage ? (
+            <p aria-live="polite" className="text-sm text-[#F0D080]" role="status">
+              {actionMessage}
+            </p>
+          ) : null}
         </div>
 
         <button

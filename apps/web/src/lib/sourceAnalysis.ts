@@ -7,6 +7,7 @@ import {
   parseLastFmUsername,
   parseYoutubeMusicProfileUrl,
   postFile,
+  postChunk,
   postJson,
   setCachedAnalysis,
 } from "./utils";
@@ -18,6 +19,8 @@ const DEFAULT_MAX_CLIENT_UPLOAD_BYTES = 50 * 1024 * 1024;
 const DEFAULT_JOB_POLL_INTERVAL_MS = 650;
 const DEFAULT_JOB_TIMEOUT_MS = 180_000;
 const DEFAULT_JOB_POLL_MAX_RETRIES = 3;
+const DEFAULT_UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
+const DEFAULT_CHUNK_RETRIES = 3;
 
 const MAX_CLIENT_UPLOAD_BYTES = readPositiveIntEnv(
   import.meta.env.VITE_MAX_UPLOAD_BYTES,
@@ -34,6 +37,14 @@ const JOB_TIMEOUT_MS = readPositiveIntEnv(
 const JOB_POLL_MAX_RETRIES = readPositiveIntEnv(
   import.meta.env.VITE_ANALYSIS_JOB_POLL_MAX_RETRIES,
   DEFAULT_JOB_POLL_MAX_RETRIES,
+);
+const UPLOAD_CHUNK_BYTES = readPositiveIntEnv(
+  import.meta.env.VITE_UPLOAD_CHUNK_BYTES,
+  DEFAULT_UPLOAD_CHUNK_BYTES,
+);
+const CHUNK_RETRIES = readPositiveIntEnv(
+  import.meta.env.VITE_UPLOAD_CHUNK_RETRIES,
+  DEFAULT_CHUNK_RETRIES,
 );
 
 export async function analyzeYoutubeProfile(
@@ -69,6 +80,7 @@ export async function analyzeTakeout(
   if (!file) {
     throw new Error("Choose a watch-history.json file first.");
   }
+  assertExpectedFileType(file, "takeout");
   assertUploadSize(file, "watch-history");
 
   const cacheKey = buildFileAnalysisCacheKey("takeout", file);
@@ -92,6 +104,7 @@ export async function analyzeUnifiedTakeout(
   if (!file) {
     throw new Error("Choose a watch-history.json file first.");
   }
+  assertExpectedFileType(file, "unified-takeout");
   assertUploadSize(file, "watch-history");
 
   const cacheKey = buildFileAnalysisCacheKey("unified-takeout", file);
@@ -115,6 +128,7 @@ export async function analyzeAppleMusic(
   if (!file) {
     throw new Error("Choose an Apple Music CSV or JSON export first.");
   }
+  assertExpectedFileType(file, "apple-music");
   assertUploadSize(file, "Apple Music export");
 
   const cacheKey = buildFileAnalysisCacheKey("apple-music", file);
@@ -158,10 +172,13 @@ async function analyzeFileViaJob(
   file: File,
   onProgress?: AnalysisProgressHandler,
 ): Promise<DashboardUploadResponse> {
-  const { jobId } = await postFile<{ jobId: string }>(
-    `/jobs/analyze?source=${encodeURIComponent(source)}`,
-    file,
-  );
+  const shouldUseChunkedUpload = file.size > UPLOAD_CHUNK_BYTES;
+  const { jobId } = shouldUseChunkedUpload
+    ? await startChunkedAnalysisJob(source, file, onProgress)
+    : await postFile<{ jobId: string }>(
+        `/jobs/analyze?source=${encodeURIComponent(source)}`,
+        file,
+      );
   const startedAt = Date.now();
   let pollErrorCount = 0;
 
@@ -197,6 +214,65 @@ async function analyzeFileViaJob(
   );
 }
 
+async function startChunkedAnalysisJob(
+  source: FileAnalysisSource,
+  file: File,
+  onProgress?: AnalysisProgressHandler,
+): Promise<{ jobId: string }> {
+  const totalChunks = Math.max(1, Math.ceil(file.size / UPLOAD_CHUNK_BYTES));
+  const init = await postJson<{ uploadId: string }>("/uploads/init", {
+    source,
+    fileName: file.name,
+    fileSize: file.size,
+    totalChunks,
+    contentType: file.type || "application/octet-stream",
+  });
+
+  for (let index = 0; index < totalChunks; index += 1) {
+    const start = index * UPLOAD_CHUNK_BYTES;
+    const end = Math.min(file.size, start + UPLOAD_CHUNK_BYTES);
+    const chunk = file.slice(start, end);
+    await uploadChunkWithRetry(init.uploadId, index, chunk);
+    onProgress?.({
+      id: init.uploadId,
+      source,
+      status: "running",
+      progress: Math.min(90, Math.round(((index + 1) / totalChunks) * 85)),
+      message: `Uploading chunk ${index + 1} of ${totalChunks}.`,
+      result: null,
+      error: null,
+    });
+  }
+
+  return postJson<{ jobId: string }>(
+    `/jobs/analyze?source=${encodeURIComponent(source)}&uploadId=${encodeURIComponent(init.uploadId)}`,
+    {},
+  );
+}
+
+async function uploadChunkWithRetry(uploadId: string, index: number, chunk: Blob): Promise<void> {
+  let attempts = 0;
+  while (attempts <= CHUNK_RETRIES) {
+    try {
+      await postChunk<{ status: string }>(
+        `/uploads/${encodeURIComponent(uploadId)}/chunk?index=${index}`,
+        chunk,
+      );
+      return;
+    } catch (error) {
+      attempts += 1;
+      if (attempts > CHUNK_RETRIES) {
+        throw new Error(
+          `Chunk upload failed at part ${index + 1}. ${
+            error instanceof Error ? error.message : "Unknown chunk upload error."
+          }`,
+        );
+      }
+      await wait(Math.min(1500, 250 * attempts));
+    }
+  }
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -224,4 +300,25 @@ function assertUploadSize(file: File, label: string): void {
   throw new Error(
     `${label} file is ${formatMegabytes(file.size)}. Max supported in this deployment is ${formatMegabytes(MAX_CLIENT_UPLOAD_BYTES)}.`,
   );
+}
+
+function hasExtension(fileName: string, expected: string[]): boolean {
+  const lower = fileName.toLowerCase();
+  return expected.some((suffix) => lower.endsWith(suffix));
+}
+
+function assertExpectedFileType(file: File, source: FileAnalysisSource): void {
+  if (source === "takeout" || source === "unified-takeout") {
+    if (hasExtension(file.name, [".json", ".json.gz", ".gz"])) {
+      return;
+    }
+    throw new Error(
+      "For this source, upload watch-history.json (or watch-history.json.gz).",
+    );
+  }
+
+  if (hasExtension(file.name, [".csv", ".json"])) {
+    return;
+  }
+  throw new Error("For Apple Music, upload a CSV or JSON export file.");
 }

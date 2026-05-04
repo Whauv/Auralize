@@ -1,5 +1,4 @@
 import { ReactNode, useMemo } from "react";
-import { motion } from "framer-motion";
 import type { EnrichedHistoryEntry } from "../lib/types";
 import {
   HEATMAP_HOURS,
@@ -21,12 +20,8 @@ export function Section({
   className?: string;
 }) {
   return (
-    <motion.section
+    <section
       className={`section-panel border-t border-[var(--panel-border,#1E293B)] px-1 py-8 ${className}`}
-      initial={{ opacity: 0, y: 28 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
     >
       <div className="section-head mb-4 flex flex-col gap-1">
         <p className="text-xs uppercase tracking-[0.35em] text-[#F59E0B]">
@@ -36,7 +31,7 @@ export function Section({
         <p className="font-body text-sm leading-6 text-[var(--subtext,#9CA3AF)]">{subtitle}</p>
       </div>
       <div className="section-body">{children}</div>
-    </motion.section>
+    </section>
   );
 }
 

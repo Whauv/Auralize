@@ -107,6 +107,30 @@ describe("analytics helpers", () => {
     expect(allTime[1].videoId).toBe("old");
   });
 
+  it("keeps recap/chart/stat builders aligned for every timeframe window", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-05T12:00:00Z"));
+
+    const windows = ["30d", "90d", "365d", "all"] as const;
+    for (const window of windows) {
+      const filtered = filterHistoryByTimeframe(timeframeEntries, window);
+      const stats = buildStatsPayloadFromHistory(filtered);
+      const genre = buildGenreBreakdownFromHistory(filtered);
+      const mood = buildMoodTimelineFromHistory(filtered);
+      const passport = buildPassportData(stats, genre, mood);
+
+      expect(stats.rawEnrichedHistory).toEqual(filtered);
+      expect(stats.topSongs.length).toBeLessThanOrEqual(10);
+      expect(genre.length).toBeGreaterThan(0);
+      expect(passport.topArtist.name.length).toBeGreaterThan(0);
+      if (window === "all") {
+        expect(stats.rawEnrichedHistory.some((entry) => entry.videoId === "old")).toBe(true);
+      } else {
+        expect(stats.rawEnrichedHistory.some((entry) => entry.videoId === "old")).toBe(false);
+      }
+    }
+  });
+
   it("builds passport and playlist views from shared stats", () => {
     const stats = buildStatsPayloadFromHistory(baseEntries);
     const genreBreakdown = buildGenreBreakdownFromHistory(baseEntries);

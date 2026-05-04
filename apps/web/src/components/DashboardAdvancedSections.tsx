@@ -64,6 +64,7 @@ export function DashboardAdvancedSections({
         <Section
           title="Playlist Generator"
           subtitle="Turn the current filtered snapshot into reusable listening sets without crowding the main dashboard."
+          className="insight-box"
         >
           <div className="grid gap-4">
             <div className="rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-5">
@@ -135,6 +136,7 @@ export function DashboardAdvancedSections({
         <Section
           title="Persona And Signals"
           subtitle="Your listening identity and the strongest quick-take observations, combined into one cleaner read."
+          className="insight-box"
         >
           <div className="grid gap-4">
             {personaProfile ? (
@@ -185,6 +187,7 @@ export function DashboardAdvancedSections({
         <Section
           title="Taste Evolution"
           subtitle="How your dominant sound shifted across recent windows in the current timeframe."
+          className="insight-box insight-box-soft"
         >
           <div className="grid gap-4 md:grid-cols-2">
             {tasteEvolution.map((point) => (
@@ -214,6 +217,7 @@ export function DashboardAdvancedSections({
         <Section
           title="Memory Lane"
           subtitle="Songs that have been with you the longest in the current snapshot."
+          className="insight-box"
         >
           <div className="grid gap-3">
             {memoryLane.map((entry) => (
@@ -247,6 +251,7 @@ export function DashboardAdvancedSections({
         <Section
           title="Achievement Badges"
           subtitle="Milestones and listening tendencies earned from your archive."
+          className="insight-box insight-box-soft"
         >
           <div className="grid gap-3">
             {achievementBadges.map((badge) => {
@@ -289,6 +294,7 @@ export function DashboardAdvancedSections({
       <Section
         title="Recent Parsed History"
         subtitle="A compact view of the enriched records powering this dashboard."
+        className="insight-box"
       >
         <div className="grid gap-3">
           {recentHistory.slice(0, 8).map((entry) => (

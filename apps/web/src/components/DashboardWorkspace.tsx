@@ -208,31 +208,30 @@ export function DashboardWorkspace({
 
   return (
     <>
-      <div className="overview-scaffold">
-        <div className="top-metrics-strip grid gap-5 py-5 md:grid-cols-3">
-          <div className="border-r border-[var(--panel-border,#1E293B)] pr-4 last:border-r-0 md:pr-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Unique Songs</p>
-            <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">{uniqueSongs}</p>
-          </div>
-          <div className="border-r border-[var(--panel-border,#1E293B)] pr-4 last:border-r-0 md:pr-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Total Plays</p>
-            <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">{totalPlays}</p>
-          </div>
-          <div className="pr-1">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
-              {dashboard?.source === "lastfm" ? "Live User" : "Parsed Tracks"}
-            </p>
-            <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">
-              {dashboard?.source === "lastfm" ? dashboard.username ?? "-" : parsedHistoryLength}
-            </p>
-          </div>
+      <div className="insight-metrics-box grid gap-5 py-5 md:grid-cols-3">
+        <div className="border-r border-[var(--panel-border,#1E293B)] pr-4 last:border-r-0 md:pr-6">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Unique Songs</p>
+          <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">{uniqueSongs}</p>
         </div>
+        <div className="border-r border-[var(--panel-border,#1E293B)] pr-4 last:border-r-0 md:pr-6">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Total Plays</p>
+          <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">{totalPlays}</p>
+        </div>
+        <div className="pr-1">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
+            {dashboard?.source === "lastfm" ? "Live User" : "Parsed Tracks"}
+          </p>
+          <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">
+            {dashboard?.source === "lastfm" ? dashboard.username ?? "-" : parsedHistoryLength}
+          </p>
+        </div>
+      </div>
 
-        <Section
-          title="Timeframe"
-          subtitle="Choose the listening window you want this dashboard and recap to analyze."
-          className="timeframe-inline"
-        >
+      <Section
+        title="Timeframe"
+        subtitle="Choose the listening window you want this dashboard and recap to analyze."
+        className="timeframe-inline insight-box"
+      >
           <div className="timeframe-controls flex flex-wrap items-center gap-2 border-b border-[var(--panel-border,#1E293B)] pb-2">
             {(Object.keys(TIMEFRAME_LABELS) as TimeframeOption[]).map((option) => (
               <button
@@ -249,14 +248,14 @@ export function DashboardWorkspace({
               </button>
             ))}
           </div>
-        </Section>
+      </Section>
 
-        {uploadQuality ? (
-          <Section
-            title="Data Quality Review"
-            subtitle="A quick trust check showing what Auralize used, ignored, and inferred from this source."
-            className="data-quality-open"
-          >
+      {uploadQuality ? (
+        <Section
+          title="Data Quality Review"
+          subtitle="A quick trust check showing what Auralize used, ignored, and inferred from this source."
+          className="data-quality-open insight-box insight-box-soft"
+        >
             <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
               <div className="grid gap-4 border-b border-[var(--panel-border,#1E293B)] pb-4 sm:grid-cols-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
                 <div>
@@ -303,24 +302,25 @@ export function DashboardWorkspace({
               ))}
               </div>
             ) : null}
-          </Section>
-        ) : null}
+        </Section>
+      ) : null}
 
-        <DashboardControlPanel
-          dashboardDensity={dashboardDensity}
-          isYoutubeProfileMode={false}
-          onDashboardDensityChange={setDashboardDensity}
-          onDeleteSession={handleDeleteSession}
-          onOpenRecap={() => setIsRecapOpen(true)}
-          onRecapThemeChange={setRecapTheme}
-          onRestoreSession={handleRestoreSession}
-          onSaveSession={handleSaveSession}
-          onScrollToSection={scrollToSection}
-          recapTheme={recapTheme}
-          savedSessions={savedSessions}
-          statsPresent
-        />
-      </div>
+      <DashboardControlPanel
+        dashboardDensity={dashboardDensity}
+        isYoutubeProfileMode={false}
+        onDashboardDensityChange={setDashboardDensity}
+        onDeleteSession={handleDeleteSession}
+        onOpenRecap={() => setIsRecapOpen(true)}
+        onRecapThemeChange={setRecapTheme}
+        onRestoreSession={handleRestoreSession}
+        onSaveSession={handleSaveSession}
+        onScrollToSection={scrollToSection}
+        currentDashboard={dashboard}
+        currentTimeframe={timeframe}
+        recapTheme={recapTheme}
+        savedSessions={savedSessions}
+        statsPresent
+      />
 
       <DashboardFiltersPanel
         artistOptions={artistOptions}

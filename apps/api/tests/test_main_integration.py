@@ -220,6 +220,35 @@ class MainIntegrationTests(unittest.TestCase):
         parse_mock.assert_awaited_once()
         dashboard_mock.assert_called_once_with(enriched_history, source="apple-music")
 
+    def test_chunked_upload_session_can_start_analysis_job(self) -> None:
+        payload = {
+            "source": "takeout",
+            "fileName": "watch-history.json",
+            "fileSize": 2,
+            "totalChunks": 1,
+            "contentType": "application/json",
+        }
+        init_response = self.client.post("/api/uploads/init", json=payload)
+        self.assertEqual(init_response.status_code, 200)
+        upload_id = init_response.json()["uploadId"]
+
+        chunk_response = self.client.post(
+            f"/api/uploads/{upload_id}/chunk?index=0",
+            files={"file": ("chunk.bin", b"[]", "application/octet-stream")},
+        )
+        self.assertEqual(chunk_response.status_code, 200)
+
+        with patch("app.main.analysis_jobs.start", return_value="job-from-upload") as start_mock:
+            job_response = self.client.post(f"/api/jobs/analyze?source=takeout&uploadId={upload_id}")
+
+        self.assertEqual(job_response.status_code, 200)
+        self.assertEqual(job_response.json(), {"jobId": "job-from-upload"})
+        start_mock.assert_called_once()
+
+    def test_jobs_analyze_requires_file_or_upload_id(self) -> None:
+        response = self.client.post("/api/jobs/analyze?source=takeout")
+        self.assertEqual(response.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

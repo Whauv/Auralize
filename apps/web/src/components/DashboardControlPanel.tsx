@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Section } from "./DashboardBits";
 import type {
+  DashboardResponse,
   RecapThemePack,
   SavedSession,
 } from "../lib/types";
@@ -20,6 +22,8 @@ type DashboardControlPanelProps = {
   recapTheme: RecapThemePack;
   onRecapThemeChange: (theme: RecapThemePack) => void;
   onOpenRecap: () => void;
+  currentDashboard: DashboardResponse | null;
+  currentTimeframe: import("../lib/types").TimeframeOption;
 };
 
 export function DashboardControlPanel({
@@ -35,6 +39,8 @@ export function DashboardControlPanel({
   recapTheme,
   onRecapThemeChange,
   onOpenRecap,
+  currentDashboard,
+  currentTimeframe,
 }: DashboardControlPanelProps) {
   if (!statsPresent) {
     return null;
@@ -46,7 +52,7 @@ export function DashboardControlPanel({
         <Section
           title="Dashboard Mode"
           subtitle="Keep the page focused with the core story, or open the full analytics stack when you want the deeper read."
-          className="mode-anchored"
+          className="mode-anchored insight-box"
         >
           <div className="flex flex-wrap gap-3">
             {(["simple", "full"] as DashboardDensity[]).map((mode) => (
@@ -73,7 +79,7 @@ export function DashboardControlPanel({
       <Section
         title="Saved Sessions"
         subtitle="Save snapshots of your current dashboard and restore them later without re-uploading."
-        className="sessions-anchored"
+        className="sessions-anchored insight-box insight-box-soft"
       >
         <div className="flex flex-wrap gap-3">
           <button
@@ -128,6 +134,18 @@ export function DashboardControlPanel({
         )}
       </Section>
 
+      <Section
+        title="Compare Sessions"
+        subtitle="Pair the current dashboard window against a saved snapshot to see listening deltas."
+        className="insight-box"
+      >
+        <SessionComparePanel
+          currentDashboard={currentDashboard}
+          currentTimeframe={currentTimeframe}
+          savedSessions={savedSessions}
+        />
+      </Section>
+
       {!isYoutubeProfileMode ? (
         <div
           className="sticky top-4 z-20 border-y border-[var(--panel-border,#1E293B)] py-3 backdrop-blur-xl"
@@ -159,7 +177,7 @@ export function DashboardControlPanel({
         <Section
           title="Instant Recap"
           subtitle="Turn this listening profile into a cinematic, story-style recap whenever you want."
-          className="recap-anchored"
+          className="recap-anchored insight-box"
         >
           <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
             <div>
@@ -225,5 +243,82 @@ export function DashboardControlPanel({
         </Section>
       ) : null}
     </>
+  );
+}
+
+function SessionComparePanel({
+  currentDashboard,
+  currentTimeframe,
+  savedSessions,
+}: {
+  currentDashboard: DashboardResponse | null;
+  currentTimeframe: import("../lib/types").TimeframeOption;
+  savedSessions: SavedSession[];
+}) {
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const selectedSession = savedSessions.find((session) => session.id === selectedSessionId) ?? null;
+
+  if (!currentDashboard) {
+    return <p className="text-sm text-[#9CA3AF]">Load dashboard data to enable session compare.</p>;
+  }
+
+  const currentMinutes = currentDashboard.stats.totalListeningMinutes;
+  const baselineMinutes = selectedSession?.dashboard.stats.totalListeningMinutes ?? 0;
+  const deltaMinutes = currentMinutes - baselineMinutes;
+  const currentTopArtist = currentDashboard.stats.topArtists[0]?.artist ?? "Unknown";
+  const baselineTopArtist = selectedSession?.dashboard.stats.topArtists[0]?.artist ?? "Unknown";
+  const currentTopGenre = currentDashboard.genreBreakdown[0]?.genre ?? "Other";
+  const baselineTopGenre = selectedSession?.dashboard.genreBreakdown[0]?.genre ?? "Other";
+
+  return (
+    <div className="grid gap-4">
+      <label className="grid gap-2">
+        <span className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">Saved session baseline</span>
+        <select
+          className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#D4A853]"
+          onChange={(event) => setSelectedSessionId(event.target.value)}
+          value={selectedSessionId}
+        >
+          <option value="">Select a saved session</option>
+          {savedSessions.map((session) => (
+            <option key={session.id} value={session.id}>
+              {session.name} · {TIMEFRAME_LABELS[session.timeframe]}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {selectedSession ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-[1rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-[#9CA3AF]">Listening time delta</p>
+            <p className="mt-2 text-xl font-semibold text-white">
+              {deltaMinutes >= 0 ? "+" : ""}
+              {Math.round(deltaMinutes)}
+              {" "}min
+            </p>
+            <p className="mt-1 text-xs text-[#9CA3AF]">
+              {TIMEFRAME_LABELS[currentTimeframe]} vs {TIMEFRAME_LABELS[selectedSession.timeframe]}
+            </p>
+          </div>
+          <div className="rounded-[1rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-[#9CA3AF]">Top artist shift</p>
+            <p className="mt-2 text-sm font-semibold text-white">
+              {baselineTopArtist} → {currentTopArtist}
+            </p>
+          </div>
+          <div className="rounded-[1rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-[#9CA3AF]">Top genre shift</p>
+            <p className="mt-2 text-sm font-semibold text-white">
+              {baselineTopGenre} → {currentTopGenre}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-[#9CA3AF]">
+          Choose any saved session to compare deltas against the current dashboard.
+        </p>
+      )}
+    </div>
   );
 }

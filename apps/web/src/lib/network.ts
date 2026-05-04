@@ -46,6 +46,22 @@ export async function postFile<T>(path: string, file: File): Promise<T> {
   return (await response.json()) as T;
 }
 
+export async function postChunk<T>(path: string, blob: Blob): Promise<T> {
+  const formData = new FormData();
+  formData.append("file", blob, "chunk.bin");
+  const response = await request(`${API_BASE_URL}/api${path}`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(payload?.detail ?? `Request to ${path} failed.`);
+  }
+
+  return (await response.json()) as T;
+}
+
 export async function getJson<T>(path: string): Promise<T> {
   const response = await request(`${API_BASE_URL}/api${path}`);
 
@@ -57,7 +73,7 @@ export async function getJson<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function postJson<T>(path: string, payload: Record<string, string>): Promise<T> {
+export async function postJson<T>(path: string, payload: unknown): Promise<T> {
   const response = await request(`${API_BASE_URL}/api${path}`, {
     method: "POST",
     headers: {

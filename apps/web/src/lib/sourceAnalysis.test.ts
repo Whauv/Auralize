@@ -14,6 +14,7 @@ const utilsMocks = vi.hoisted(() => ({
   setCachedAnalysis: vi.fn(),
   getJson: vi.fn(),
   postFile: vi.fn(),
+  postChunk: vi.fn(),
   postJson: vi.fn(),
   buildFileAnalysisCacheKey: vi.fn((_source: string, _file: File) => "file-cache-key"),
   buildJsonAnalysisCacheKey: vi.fn((_source: string, _value: string) => "json-cache-key"),
@@ -29,6 +30,7 @@ vi.mock("./utils", () => ({
   parseLastFmUsername: utilsMocks.parseLastFmUsername,
   parseYoutubeMusicProfileUrl: utilsMocks.parseYoutubeMusicProfileUrl,
   postFile: utilsMocks.postFile,
+  postChunk: utilsMocks.postChunk,
   postJson: utilsMocks.postJson,
   setCachedAnalysis: utilsMocks.setCachedAnalysis,
 }));
@@ -37,6 +39,7 @@ describe("source analysis helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     utilsMocks.getCachedAnalysis.mockReturnValue(null);
+    utilsMocks.postChunk.mockResolvedValue({ status: "ok" });
   });
 
   it("returns cached YouTube profile analysis when available", async () => {
@@ -189,6 +192,53 @@ describe("source analysis helpers", () => {
     const oversizedFile = { size: 60 * 1024 * 1024 } as File;
 
     await expect(analyzeTakeout(oversizedFile)).rejects.toThrow("Max supported in this deployment");
+    expect(utilsMocks.postFile).not.toHaveBeenCalled();
+  });
+
+  it("uses chunked upload flow for large files before starting job", async () => {
+    const payload: DashboardUploadResponse = {
+      entries: [],
+      quality: {
+        totalEntries: 1,
+        usableEntries: 1,
+        searchEntries: 0,
+        youtubeMusicEntries: 1,
+        warnings: [],
+      },
+      dashboard: {
+        source: "takeout",
+        username: null,
+        stats: {
+          topSongs: [],
+          topArtists: [],
+          totalListeningMinutes: 0,
+          rawEnrichedHistory: [],
+        },
+        genreBreakdown: [],
+        moodTimeline: [],
+        profileSummary: null,
+      },
+    };
+
+    const largeFile = new File([new Uint8Array(6 * 1024 * 1024)], "watch-history.json", {
+      type: "application/json",
+    });
+
+    utilsMocks.postJson
+      .mockResolvedValueOnce({ uploadId: "upload-123" })
+      .mockResolvedValueOnce({ jobId: "job-large" });
+    utilsMocks.getJson.mockResolvedValue({
+      id: "job-large",
+      source: "takeout",
+      status: "complete",
+      progress: 100,
+      message: "Complete",
+      result: payload,
+      error: null,
+    });
+
+    await expect(analyzeTakeout(largeFile)).resolves.toEqual({ payload });
+    expect(utilsMocks.postChunk).toHaveBeenCalled();
     expect(utilsMocks.postFile).not.toHaveBeenCalled();
   });
 
