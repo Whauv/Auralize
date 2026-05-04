@@ -53,11 +53,16 @@ export function DashboardOverviewSections({
   isSimpleDashboard,
   dashboardTheme
 }: DashboardOverviewSectionsProps) {
+  const gridStroke = "color-mix(in srgb, var(--panel-border,#1E293B) 52%, transparent)";
+  const axisStroke = "color-mix(in srgb, var(--subtext,#9CA3AF) 74%, transparent)";
+  const axisTick = { fill: "var(--subtext,#9CA3AF)", fontSize: 12 };
+
   return (
     <>
       <Section
         title="Top Songs"
         subtitle="Your 10 most-played songs with cover art embedded into the chart labels."
+        className="insight-box"
       >
         <div className="h-[380px] md:h-[460px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -71,8 +76,8 @@ export function DashboardOverviewSections({
                 bottom: 0
               }}
             >
-              <CartesianGrid stroke="rgba(255,255,255,0.08)" horizontal={false} />
-              <XAxis type="number" stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
+              <CartesianGrid stroke={gridStroke} horizontal={false} />
+              <XAxis type="number" stroke={axisStroke} tick={axisTick} />
               <YAxis
                 type="category"
                 dataKey="title"
@@ -90,6 +95,7 @@ export function DashboardOverviewSections({
       <Section
         title="Top Artists"
         subtitle="Artists sorted by total play count across your listening history."
+        className="insight-box insight-box-soft"
       >
         <div className="h-[320px] md:h-[360px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -100,17 +106,17 @@ export function DashboardOverviewSections({
               }))}
               margin={{ top: 10, right: 20, left: 0, bottom: 50 }}
             >
-              <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+              <CartesianGrid stroke={gridStroke} vertical={false} />
               <XAxis
                 dataKey="artist"
                 angle={-18}
                 textAnchor="end"
                 interval={0}
                 height={70}
-                stroke="#9CA3AF"
-                tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                stroke={axisStroke}
+                tick={axisTick}
               />
-              <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
+              <YAxis stroke={axisStroke} tick={axisTick} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartSecondary} />
             </BarChart>
@@ -122,6 +128,7 @@ export function DashboardOverviewSections({
         <Section
           title="Artist Web"
           subtitle="A living constellation of the artists shaping this listening window."
+          className="insight-box"
         >
           <ArtistClusterWeb entries={statsEntries} />
         </Section>
@@ -131,6 +138,7 @@ export function DashboardOverviewSections({
         <Section
           title="Genre DNA"
           subtitle="Keyword-led genre classification with artist-name fallback when tags are missing."
+          className="insight-box insight-box-soft"
         >
           <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="h-[280px] md:h-[320px]">
@@ -182,13 +190,14 @@ export function DashboardOverviewSections({
           <Section
             title="Mood Timeline"
             subtitle="Time-of-day buckets that hint at how your listening shifts through the day."
+            className="insight-box"
           >
             <div className="h-[280px] md:h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={moodTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                  <XAxis dataKey="mood" stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
-                  <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF", fontSize: 12 }} />
+                  <CartesianGrid stroke={gridStroke} vertical={false} />
+                  <XAxis dataKey="mood" stroke={axisStroke} tick={axisTick} />
+                  <YAxis stroke={axisStroke} tick={axisTick} />
                   <Tooltip content={<ChartTooltip />} />
                   <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartTertiary} />
                 </BarChart>
@@ -199,6 +208,7 @@ export function DashboardOverviewSections({
           <Section
             title="Listening Habits"
             subtitle="Your strongest listening mood and the time of day where it shows up most."
+            className="insight-box"
           >
             <div className="grid gap-4 md:grid-cols-2">
               {moodTimeline.slice(0, 2).map((entry, index) => (
@@ -221,6 +231,7 @@ export function DashboardOverviewSections({
       <Section
         title="Listening Heatmap"
         subtitle="A 7x24 weekly matrix showing when your plays cluster by day and hour."
+        className="insight-box insight-box-soft"
       >
         <ListeningHeatmap entries={heatmapEntries} />
       </Section>

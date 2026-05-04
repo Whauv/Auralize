@@ -18,6 +18,18 @@
   --page-accent-2: #bc9158;
   --page-accent-3: #6f8c84;
   --page-muted: #b5a99a;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --text-kicker: 0.75rem;
+  --text-body: 0.95rem;
+  --text-title: clamp(1.7rem, 2vw, 2.15rem);
+  --radius-sm: 0.45rem;
+  --radius-md: 0.5rem;
 }
 
 html {
@@ -39,6 +51,15 @@ body {
   box-sizing: border-box;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent, #d4a853) 78%, white 8%);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #d4a853) 22%, transparent);
+}
+
 #root {
   min-height: 100vh;
 }
@@ -53,6 +74,22 @@ body {
   font-family: "Instrument Sans", "Space Grotesk", "Segoe UI", sans-serif;
 }
 
+.ui-kicker {
+  font-size: var(--text-kicker);
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+}
+
+.ui-section-title {
+  font-size: var(--text-title);
+  line-height: 1;
+}
+
+.ui-pill {
+  border-radius: 9999px;
+  padding: 0.55rem 0.95rem;
+}
+
 body::before {
   content: "";
   position: fixed;
@@ -60,7 +97,7 @@ body::before {
   pointer-events: none;
   background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
   background-size: 100% 66px;
-  opacity: 0.12;
+  opacity: 0.06;
 }
 
 body::after {
@@ -74,7 +111,7 @@ body::after {
     radial-gradient(circle at 62% 74%, rgba(188, 145, 88, 0.07), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 22%);
   mix-blend-mode: screen;
-  opacity: 0.55;
+  opacity: 0.28;
 }
 
 ::selection {
@@ -159,8 +196,20 @@ body::after {
   width: 100%;
   transform-origin: 0 50%;
   background: linear-gradient(90deg, #6f8c84 0%, #d3ab6a 52%, #bc9158 100%);
-  box-shadow: 0 0 18px rgba(211, 171, 106, 0.24);
+  box-shadow: 0 0 12px rgba(211, 171, 106, 0.18);
   z-index: 60;
+}
+
+.app-smooth .ambient-stage {
+  display: none;
+}
+
+.app-smooth .scroll-glow {
+  box-shadow: none;
+}
+
+.app-smooth .hero-shell::after {
+  opacity: 0.3;
 }
 
 .section-panel {
@@ -171,19 +220,31 @@ body::after {
   box-shadow: none;
 }
 
-.overview-scaffold {
-  position: relative;
-  margin-top: 0.25rem;
-  border: 1px solid color-mix(in srgb, var(--panel-border, #1e293b) 78%, transparent);
-  border-radius: 0.55rem;
-  padding: 0 0.25rem;
+.insight-metrics-box {
+  margin-top: 0.35rem;
+  padding: 1rem 1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--panel-border, #1e293b) 82%, transparent);
+  border-radius: 0.5rem;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg, #111827) 58%, transparent), transparent 28%),
-    color-mix(in srgb, var(--panel-bg, #111827) 22%, transparent);
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg, #111827) 76%, transparent), transparent 50%),
+    color-mix(in srgb, var(--panel-bg, #111827) 34%, transparent);
 }
 
-.top-metrics-strip {
-  border-bottom: 1px solid color-mix(in srgb, var(--panel-border, #1e293b) 76%, transparent);
+.insight-box {
+  margin-top: 0.95rem;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--panel-border, #1e293b) 78%, transparent);
+  border-radius: 0.5rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg, #111827) 72%, transparent), transparent 42%),
+    color-mix(in srgb, var(--panel-bg, #111827) 26%, transparent);
+}
+
+.insight-box-soft {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg, #111827) 62%, transparent), transparent 44%),
+    color-mix(in srgb, var(--panel-bg, #111827) 18%, transparent);
 }
 
 .section-panel::before {
@@ -296,8 +357,16 @@ body::after {
   box-shadow:
     inset 0 0 0 2.8rem rgba(211, 171, 106, 0.04),
     inset 0 0 0 5.6rem rgba(34, 28, 22, 0.2);
-  opacity: 0.72;
+  opacity: 0.45;
   pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .hero-chip {

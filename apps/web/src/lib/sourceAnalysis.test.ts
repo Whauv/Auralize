@@ -14,6 +14,7 @@ const utilsMocks = vi.hoisted(() => ({
   setCachedAnalysis: vi.fn(),
   getJson: vi.fn(),
   postFile: vi.fn(),
+  postChunk: vi.fn(),
   postJson: vi.fn(),
   buildFileAnalysisCacheKey: vi.fn((_source: string, _file: File) => "file-cache-key"),
   buildJsonAnalysisCacheKey: vi.fn((_source: string, _value: string) => "json-cache-key"),
@@ -29,14 +30,16 @@ vi.mock("./utils", () => ({
   parseLastFmUsername: utilsMocks.parseLastFmUsername,
   parseYoutubeMusicProfileUrl: utilsMocks.parseYoutubeMusicProfileUrl,
   postFile: utilsMocks.postFile,
+  postChunk: utilsMocks.postChunk,
   postJson: utilsMocks.postJson,
   setCachedAnalysis: utilsMocks.setCachedAnalysis,
 }));
 
 describe("source analysis helpers", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     utilsMocks.getCachedAnalysis.mockReturnValue(null);
+    utilsMocks.postChunk.mockResolvedValue({ status: "ok" });
   });
 
   it("returns cached YouTube profile analysis when available", async () => {
@@ -172,28 +175,82 @@ describe("source analysis helpers", () => {
         error: null,
       });
     utilsMocks.postJson.mockResolvedValue(livePayload);
-    const file = new File(["artist,title"], "apple.csv", { type: "text/csv" });
+    const unifiedFile = new File(["[]"], "watch-history.json", { type: "application/json" });
+    const appleFile = new File(["artist,title"], "apple.csv", { type: "text/csv" });
 
-    await expect(analyzeUnifiedTakeout(file)).resolves.toEqual({ payload: uploadPayload });
-    await expect(analyzeAppleMusic(file)).resolves.toEqual({ payload: uploadPayload });
+    await expect(analyzeUnifiedTakeout(unifiedFile)).resolves.toEqual({ payload: uploadPayload });
+    await expect(analyzeAppleMusic(appleFile)).resolves.toEqual({ payload: uploadPayload });
     await expect(analyzeLastFm("prana")).resolves.toEqual({ payload: livePayload });
 
-    expect(utilsMocks.postFile).toHaveBeenCalledWith("/jobs/analyze?source=unified-takeout", file);
-    expect(utilsMocks.postFile).toHaveBeenCalledWith("/jobs/analyze?source=apple-music", file);
+    expect(utilsMocks.postFile).toHaveBeenCalledWith(
+      "/jobs/analyze?source=unified-takeout",
+      unifiedFile,
+    );
+    expect(utilsMocks.postFile).toHaveBeenCalledWith("/jobs/analyze?source=apple-music", appleFile);
     expect(utilsMocks.getJson).toHaveBeenCalledWith("/jobs/job-unified");
     expect(utilsMocks.getJson).toHaveBeenCalledWith("/jobs/job-apple");
     expect(utilsMocks.postJson).toHaveBeenCalledWith("/lastfm", { username: "prana" });
   });
 
   it("rejects oversized files before uploading", async () => {
-    const oversizedFile = { size: 60 * 1024 * 1024 } as File;
+    const oversizedFile = {
+      name: "watch-history.json",
+      size: 60 * 1024 * 1024,
+    } as File;
 
     await expect(analyzeTakeout(oversizedFile)).rejects.toThrow("Max supported in this deployment");
     expect(utilsMocks.postFile).not.toHaveBeenCalled();
   });
 
+  it("uses chunked upload flow for large files before starting job", async () => {
+    const takeoutPayload: DashboardUploadResponse = {
+      entries: [],
+      quality: {
+        totalEntries: 1,
+        usableEntries: 1,
+        searchEntries: 0,
+        youtubeMusicEntries: 1,
+        warnings: [],
+      },
+      dashboard: {
+        source: "takeout",
+        username: null,
+        stats: {
+          topSongs: [],
+          topArtists: [],
+          totalListeningMinutes: 0,
+          rawEnrichedHistory: [],
+        },
+        genreBreakdown: [],
+        moodTimeline: [],
+        profileSummary: null,
+      },
+    };
+
+    const largeFile = new File([new Uint8Array(6 * 1024 * 1024)], "watch-history.json", {
+      type: "application/json",
+    });
+
+    utilsMocks.postJson
+      .mockResolvedValueOnce({ uploadId: "upload-123" })
+      .mockResolvedValueOnce({ jobId: "job-large" });
+    utilsMocks.getJson.mockResolvedValue({
+      id: "job-large",
+      source: "takeout",
+      status: "complete",
+      progress: 100,
+      message: "Complete",
+      result: takeoutPayload,
+      error: null,
+    });
+
+    await expect(analyzeTakeout(largeFile)).resolves.toEqual({ payload: takeoutPayload });
+    expect(utilsMocks.postChunk).toHaveBeenCalled();
+    expect(utilsMocks.postFile).not.toHaveBeenCalled();
+  });
+
   it("retries polling on transient failures", async () => {
-    const payload: DashboardUploadResponse = {
+    const takeoutPayload: DashboardUploadResponse = {
       entries: [],
       quality: {
         totalEntries: 1,
@@ -226,11 +283,11 @@ describe("source analysis helpers", () => {
         status: "complete",
         progress: 100,
         message: "Complete",
-        result: payload,
+        result: takeoutPayload,
         error: null,
       });
 
-    await expect(analyzeTakeout(file)).resolves.toEqual({ payload });
+    await expect(analyzeTakeout(file)).resolves.toEqual({ payload: takeoutPayload });
     expect(utilsMocks.getJson).toHaveBeenCalledTimes(2);
   });
 

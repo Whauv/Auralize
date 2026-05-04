@@ -36,11 +36,13 @@ from app.services.stats import (
     build_mood_timeline,
     build_stats_payload,
 )
+from app.services.upload_sessions import upload_sessions
 from app.services.youtube_profile import fetch_youtube_music_profile
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 UPLOAD_FILE = File(...)
+OPTIONAL_UPLOAD_FILE = File(default=None)
 REQUEST_CACHE_TTL = 60 * 30
 LOGGER = logging.getLogger("auralize.api")
 
@@ -174,6 +176,16 @@ class AnalysisJobRequest(BaseModel):
     source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout"
 
 
+class UploadInitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout"
+    fileName: str = Field(min_length=1, max_length=260)
+    fileSize: int = Field(gt=0)
+    totalChunks: int = Field(gt=0, le=10000)
+    contentType: str | None = Field(default=None, max_length=100)
+
+
 @app.on_event("startup")
 def log_runtime_config() -> None:
     report = build_runtime_config_report()
@@ -220,11 +232,51 @@ async def analyze_watch_history(file: UploadFile = UPLOAD_FILE) -> dict[str, Any
 @app.post("/api/jobs/analyze")
 async def start_analysis_job(
     source: Literal["takeout", "unified-takeout", "apple-music"] = "takeout",
-    file: UploadFile = UPLOAD_FILE,
+    file: UploadFile | None = OPTIONAL_UPLOAD_FILE,
+    uploadId: str | None = None,
 ) -> dict[str, str]:
+    if uploadId:
+        raw_content, content_type = upload_sessions.finalize(uploadId)
+        job_id = analysis_jobs.start(source, raw_content, content_type)
+        return {"jobId": job_id}
+
+    if file is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either a direct file upload or uploadId.",
+        )
+
     raw_content = await file.read()
     job_id = analysis_jobs.start(source, raw_content, file.content_type)
     return {"jobId": job_id}
+
+
+@app.post("/api/uploads/init")
+def init_upload_session(payload: UploadInitRequest) -> dict[str, str]:
+    upload_id = upload_sessions.create(
+        source=payload.source,
+        file_name=payload.fileName,
+        file_size=payload.fileSize,
+        total_chunks=payload.totalChunks,
+        content_type=payload.contentType,
+    )
+    return {"uploadId": upload_id}
+
+
+@app.post("/api/uploads/{upload_id}/chunk")
+async def append_upload_chunk(
+    upload_id: str,
+    index: int,
+    file: UploadFile = UPLOAD_FILE,
+) -> dict[str, str]:
+    chunk = await file.read()
+    upload_sessions.add_chunk(upload_id, index=index, data=chunk)
+    return {"status": "ok"}
+
+
+@app.get("/api/uploads/{upload_id}")
+def get_upload_status(upload_id: str) -> dict[str, Any]:
+    return upload_sessions.get_status(upload_id)
 
 
 @app.get("/api/jobs/{job_id}")

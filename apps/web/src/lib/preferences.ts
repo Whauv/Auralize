@@ -9,6 +9,7 @@ export type DashboardPreferences = Partial<{
   recapVariant: RecapVariant;
   dashboardDensity: "simple" | "full";
   exportThemeId: string;
+  performanceMode: "smooth" | "cinematic";
 }>;
 
 export function loadDashboardPreferences(): DashboardPreferences | null {

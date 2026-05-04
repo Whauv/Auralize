@@ -53,6 +53,8 @@ describe("DashboardControlPanel", () => {
         recapTheme="gold-noir"
         savedSessions={[savedSession]}
         statsPresent
+        currentDashboard={dashboard}
+        currentTimeframe="all"
       />,
     );
 

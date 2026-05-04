@@ -10,7 +10,7 @@ import {
   useRef,
   useState
 } from "react";
-import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { MusicPassportData } from "./components/MusicPassportCard";
 import { LoadingSpinner } from "./components/DashboardBits";
 import { DashboardWorkspace } from "./components/DashboardWorkspace";
@@ -77,6 +77,7 @@ import type { AdvancedAnalyticsWorkerResponse } from "./lib/advancedAnalytics.wo
 import { SharedPassportPage } from "./components/SharedPassportPage";
 import { SharedProfilePage } from "./components/SharedProfilePage";
 type DashboardDensity = "simple" | "full";
+type PerformanceMode = "smooth" | "cinematic";
 type ExportThemeId =
   | "aurora-noir"
   | "anime-pop"
@@ -686,13 +687,10 @@ function HeroAlbumStack({
   return (
     <div className="album-stack hidden xl:block">
       {cards.map((song, index) => (
-        <motion.div
+        <div
           key={`${song.title}-${song.artist}-${index}`}
           className="album-card"
-          initial={{ opacity: 0, y: 18, rotate: song.rotation - 3 }}
-          animate={{ opacity: 1, y: 0, rotate: song.rotation }}
-          transition={{ duration: 0.8, delay: 0.12 * index, ease: [0.22, 1, 0.36, 1] }}
-          style={{ top: `${song.top}px`, left: `${song.left}px` }}
+          style={{ top: `${song.top}px`, left: `${song.left}px`, transform: `rotate(${song.rotation}deg)` }}
         >
           {song.thumbnail ? (
             <img className="album-card-cover" src={song.thumbnail} alt={song.title} />
@@ -709,16 +707,15 @@ function HeroAlbumStack({
             <p className="album-card-title">{song.title}</p>
             <p className="album-card-meta">{song.artist}</p>
           </div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );
 }
 
 export default function App() {
-  const { scrollYProgress } = useScroll();
   const prefersReducedMotion = useReducedMotion();
-  const progressScale = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  const progressScale = 1;
   const [sourceMode, setSourceMode] = useState<SourceMode>("takeout");
   const [file, setFile] = useState<File | null>(null);
   const [youtubeMusicProfileUrl, setYoutubeMusicProfileUrl] = useState("");
@@ -738,19 +735,21 @@ export default function App() {
   const [recapTheme, setRecapTheme] = useState<RecapThemePack>("gold-noir");
   const [dashboardDensity, setDashboardDensity] = useState<DashboardDensity>("simple");
   const [exportThemeId, setExportThemeId] = useState<ExportThemeId>("aurora-noir");
+  const [performanceMode, setPerformanceMode] = useState<PerformanceMode>("smooth");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("");
   const [selectedArtist, setSelectedArtist] = useState("");
   const [selectedMood, setSelectedMood] = useState("");
   const [selectedPlaylistId] = useState<PlaylistMode>("top");
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(false);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [advancedAnalytics, setAdvancedAnalytics] = useState<AdvancedAnalyticsResult | null>(null);
   const [isAdvancedAnalyticsLoading, setIsAdvancedAnalyticsLoading] = useState(false);
   const passportRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const advancedAnalyticsRequestId = useRef(0);
+  const advancedAnalyticsWorker = useRef<Worker | null>(null);
   const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
 
   useEffect(() => {
@@ -798,6 +797,9 @@ export default function App() {
     if (saved.exportThemeId) {
       setExportThemeId(saved.exportThemeId as ExportThemeId);
     }
+    if (saved.performanceMode) {
+      setPerformanceMode(saved.performanceMode);
+    }
   }, []);
 
   useEffect(() => {
@@ -809,9 +811,10 @@ export default function App() {
       timeframe,
       recapTheme,
       dashboardDensity,
-      exportThemeId
+      exportThemeId,
+      performanceMode
     });
-  }, [timeframe, recapTheme, dashboardDensity, exportThemeId]);
+  }, [timeframe, recapTheme, dashboardDensity, exportThemeId, performanceMode]);
 
   useEffect(() => {
     saveSavedSessions(savedSessions);
@@ -921,6 +924,11 @@ export default function App() {
   const activePassport = sharedPassport ?? passportData ?? null;
   const exportTheme = EXPORT_THEME_OPTIONS[exportThemeId];
   useEffect(() => {
+    if (advancedAnalyticsWorker.current) {
+      advancedAnalyticsWorker.current.terminate();
+      advancedAnalyticsWorker.current = null;
+    }
+
     if (!stats || isYoutubeProfileMode || dashboardDensity !== "full") {
       advancedAnalyticsRequestId.current += 1;
       setAdvancedAnalytics(null);
@@ -944,6 +952,7 @@ export default function App() {
       new URL("./lib/advancedAnalytics.worker.ts", import.meta.url),
       { type: "module" },
     );
+    advancedAnalyticsWorker.current = worker;
 
     worker.onmessage = (event: MessageEvent<AdvancedAnalyticsWorkerResponse>) => {
       if (advancedAnalyticsRequestId.current !== event.data.id) {
@@ -958,6 +967,9 @@ export default function App() {
 
       setIsAdvancedAnalyticsLoading(false);
       worker.terminate();
+      if (advancedAnalyticsWorker.current === worker) {
+        advancedAnalyticsWorker.current = null;
+      }
     };
 
     worker.onerror = () => {
@@ -966,12 +978,18 @@ export default function App() {
         setIsAdvancedAnalyticsLoading(false);
       }
       worker.terminate();
+      if (advancedAnalyticsWorker.current === worker) {
+        advancedAnalyticsWorker.current = null;
+      }
     };
 
     worker.postMessage({ id: requestId, input });
 
     return () => {
       worker.terminate();
+      if (advancedAnalyticsWorker.current === worker) {
+        advancedAnalyticsWorker.current = null;
+      }
     };
   }, [stats, genreBreakdown, moodTimeline, timeframe, isYoutubeProfileMode, dashboardDensity]);
 
@@ -1244,7 +1262,7 @@ export default function App() {
       setSharedProfile(null);
       window.history.replaceState({}, "", window.location.pathname);
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Request failed.");
+      setError(toUserFacingError(uploadError));
       setParsedHistory([]);
       setDashboard(null);
       setUploadQuality(null);
@@ -1281,7 +1299,9 @@ export default function App() {
 
   return (
     <main
-      className="relative isolate min-h-screen px-4 py-6 text-slate-100 md:px-6 lg:px-8"
+      className={`relative isolate min-h-screen px-4 py-6 text-slate-100 md:px-6 lg:px-8 ${
+        performanceMode === "smooth" ? "app-smooth" : "app-cinematic"
+      }`}
       style={
         {
           backgroundColor: dashboardTheme.pageBg,
@@ -1298,7 +1318,7 @@ export default function App() {
     >
       <motion.div className="scroll-glow" style={{ scaleX: progressScale }} />
       <AnimatePresence mode="wait">
-        {showIntro ? (
+        {showIntro && performanceMode === "cinematic" ? (
           <motion.div
             key="intro-splash"
             className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#060812]"
@@ -1357,7 +1377,7 @@ export default function App() {
           </motion.div>
         ) : null}
       </AnimatePresence>
-      <AmbientMusicScene />
+      {performanceMode === "cinematic" ? <AmbientMusicScene /> : null}
       {stats && !isYoutubeProfileMode ? (
         <Suspense fallback={null}>
           <RecapView
@@ -1384,7 +1404,7 @@ export default function App() {
         transition={{ duration: 1, ease: [0.19, 1, 0.22, 1] }}
       >
         <motion.section
-          className="hero-shell relative overflow-hidden rounded-[2rem] border p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] backdrop-blur md:p-8"
+          className="hero-shell relative overflow-hidden rounded-[2rem] border p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] md:p-8"
           style={{
             borderColor: dashboardTheme.panelBorder,
             background: dashboardTheme.heroGradient
@@ -1397,25 +1417,46 @@ export default function App() {
           <div className="relative">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Theme</p>
-              <div className="flex flex-wrap gap-2">
-                {([
-                  ["gold-noir", "Gold Noir"],
-                  ["violet-dusk", "Violet Dusk"],
-                  ["teal-afterglow", "Teal Afterglow"]
-                ] as const).map(([themeId, label]) => (
-                  <button
-                    key={themeId}
-                    className={`rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                      recapTheme === themeId
-                        ? "border-[#D4A853] bg-[#D4A853] text-slate-950"
-                        : "border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-                    }`}
-                    onClick={() => setRecapTheme(themeId)}
-                    type="button"
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ["gold-noir", "Gold Noir"],
+                    ["violet-dusk", "Violet Dusk"],
+                    ["teal-afterglow", "Teal Afterglow"]
+                  ] as const).map(([themeId, label]) => (
+                    <button
+                      key={themeId}
+                      className={`rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                        recapTheme === themeId
+                          ? "border-[#D4A853] bg-[#D4A853] text-slate-950"
+                          : "border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
+                      }`}
+                      onClick={() => setRecapTheme(themeId)}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="ml-0 flex gap-2 md:ml-2">
+                  {([
+                    ["smooth", "Smooth"],
+                    ["cinematic", "Cinematic"]
+                  ] as const).map(([modeId, label]) => (
+                    <button
+                      key={modeId}
+                      className={`rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                        performanceMode === modeId
+                          ? "border-[#67C3C0] bg-[#67C3C0] text-slate-950"
+                          : "border-[#1E293B] bg-[#111827] text-white hover:border-[#67C3C0] hover:bg-[#182234]"
+                      }`}
+                      onClick={() => setPerformanceMode(modeId)}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="grid gap-8 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
@@ -1583,4 +1624,21 @@ export default function App() {
       </motion.div>
     </main>
   );
+}
+
+function toUserFacingError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Request failed.";
+  }
+
+  const message = error.message.trim();
+  if (!message) {
+    return "Request failed.";
+  }
+
+  if (message.toLowerCase() === "failed to fetch") {
+    return "Could not reach the API. Verify VITE_API_BASE_URL, backend health, and CORS origin settings.";
+  }
+
+  return message;
 }
