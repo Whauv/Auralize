@@ -46,6 +46,7 @@ export function DashboardControlPanel({
         <Section
           title="Dashboard Mode"
           subtitle="Keep the page focused with the core story, or open the full analytics stack when you want the deeper read."
+          className="mode-anchored"
         >
           <div className="flex flex-wrap gap-3">
             {(["simple", "full"] as DashboardDensity[]).map((mode) => (
@@ -72,6 +73,7 @@ export function DashboardControlPanel({
       <Section
         title="Saved Sessions"
         subtitle="Save snapshots of your current dashboard and restore them later without re-uploading."
+        className="sessions-anchored"
       >
         <div className="flex flex-wrap gap-3">
           <button
@@ -128,7 +130,7 @@ export function DashboardControlPanel({
 
       {!isYoutubeProfileMode ? (
         <div
-          className="sticky top-4 z-20 rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] p-3 backdrop-blur-xl"
+          className="sticky top-4 z-20 border-y border-[var(--panel-border,#1E293B)] py-3 backdrop-blur-xl"
           style={{
             backgroundColor: "color-mix(in srgb, var(--panel-bg,#111827) 92%, transparent)",
           }}
@@ -157,6 +159,7 @@ export function DashboardControlPanel({
         <Section
           title="Instant Recap"
           subtitle="Turn this listening profile into a cinematic, story-style recap whenever you want."
+          className="recap-anchored"
         >
           <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
             <div>

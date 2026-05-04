@@ -63,6 +63,7 @@ export function ShareStudio({
         <Section
           title="Export Studio"
           subtitle="Package the current view as a profile link, PNG, or structured file."
+          className="export-anchored"
         >
           <div className="grid gap-3">
             <button
@@ -95,6 +96,7 @@ export function ShareStudio({
         <Section
           title="Music Passport"
           subtitle="A shareable summary card you can export as a PNG or copy as a read-only link."
+          className="passport-anchored"
         >
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="overflow-x-auto">
@@ -173,6 +175,7 @@ export function ShareStudio({
         <Section
           title="Public Profile Preview"
           subtitle="This view comes from a public YouTube Music profile link, so it can only show public metadata rather than private listening history."
+          className="profile-anchored"
         >
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-6">

@@ -36,7 +36,7 @@ export function DashboardAdvancedSections({
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-5 flex flex-wrap items-center gap-3 border-b border-[var(--panel-border,#1E293B)] pb-3">
         <p className="pr-2 text-xs font-semibold uppercase tracking-[0.32em] text-[#F59E0B]">
           Deep Dive
         </p>

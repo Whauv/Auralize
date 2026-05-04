@@ -208,115 +208,119 @@ export function DashboardWorkspace({
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
-          <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Unique Songs</p>
-          <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">{uniqueSongs}</p>
+      <div className="overview-scaffold">
+        <div className="top-metrics-strip grid gap-5 py-5 md:grid-cols-3">
+          <div className="border-r border-[var(--panel-border,#1E293B)] pr-4 last:border-r-0 md:pr-6">
+            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Unique Songs</p>
+            <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">{uniqueSongs}</p>
+          </div>
+          <div className="border-r border-[var(--panel-border,#1E293B)] pr-4 last:border-r-0 md:pr-6">
+            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Total Plays</p>
+            <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">{totalPlays}</p>
+          </div>
+          <div className="pr-1">
+            <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
+              {dashboard?.source === "lastfm" ? "Live User" : "Parsed Tracks"}
+            </p>
+            <p className="mt-2 text-4xl font-semibold leading-none text-[var(--heading,#FFFFFF)]">
+              {dashboard?.source === "lastfm" ? dashboard.username ?? "-" : parsedHistoryLength}
+            </p>
+          </div>
         </div>
-        <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
-          <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Total Plays</p>
-          <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">{totalPlays}</p>
-        </div>
-        <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] p-5">
-          <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">
-            {dashboard?.source === "lastfm" ? "Live User" : "Parsed Tracks"}
-          </p>
-          <p className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">
-            {dashboard?.source === "lastfm" ? dashboard.username ?? "-" : parsedHistoryLength}
-          </p>
-        </div>
-      </div>
 
-      <Section
-        title="Timeframe"
-        subtitle="Choose the listening window you want this dashboard and recap to analyze."
-      >
-        <div className="flex flex-wrap gap-3">
-          {(Object.keys(TIMEFRAME_LABELS) as TimeframeOption[]).map((option) => (
-            <button
-              key={option}
-              className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
-                timeframe === option
-                  ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
-                  : "border border-[#1E293B] bg-[#111827] text-white hover:border-[#F0D080] hover:bg-[#182234]"
-              }`}
-              onClick={() => setTimeframe(option)}
-              type="button"
-            >
-              {TIMEFRAME_LABELS[option]}
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      {uploadQuality ? (
         <Section
-          title="Data Quality Review"
-          subtitle="A quick trust check showing what Auralize used, ignored, and inferred from this source."
+          title="Timeframe"
+          subtitle="Choose the listening window you want this dashboard and recap to analyze."
+          className="timeframe-inline"
         >
-          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.26em] text-[#F59E0B]">Usable</p>
-                <p className="mt-2 text-2xl font-semibold text-white">
-                  {uploadQuality.usableEntries}
-                </p>
-                <p className="mt-1 text-xs text-[#9CA3AF]">tracks kept for analysis</p>
+          <div className="timeframe-controls flex flex-wrap items-center gap-2 border-b border-[var(--panel-border,#1E293B)] pb-2">
+            {(Object.keys(TIMEFRAME_LABELS) as TimeframeOption[]).map((option) => (
+              <button
+                key={option}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  timeframe === option
+                    ? "border border-[#D4A853] bg-[#D4A853] text-slate-950"
+                    : "border border-transparent bg-transparent text-white hover:border-[#3A332B] hover:bg-[#1A1714]"
+                }`}
+                onClick={() => setTimeframe(option)}
+                type="button"
+              >
+                {TIMEFRAME_LABELS[option]}
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        {uploadQuality ? (
+          <Section
+            title="Data Quality Review"
+            subtitle="A quick trust check showing what Auralize used, ignored, and inferred from this source."
+            className="data-quality-open"
+          >
+            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="grid gap-4 border-b border-[var(--panel-border,#1E293B)] pb-4 sm:grid-cols-2 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.26em] text-[#F59E0B]">Usable</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {uploadQuality.usableEntries}
+                  </p>
+                  <p className="mt-1 text-xs text-[#9CA3AF]">tracks kept for analysis</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.26em] text-[#F59E0B]">Ignored</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {uploadQuality.searchEntries}
+                  </p>
+                  <p className="mt-1 text-xs text-[#9CA3AF]">search-history rows skipped</p>
+                </div>
               </div>
-              <div className="rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.26em] text-[#F59E0B]">Ignored</p>
-                <p className="mt-2 text-2xl font-semibold text-white">
-                  {uploadQuality.searchEntries}
-                </p>
-                <p className="mt-1 text-xs text-[#9CA3AF]">search-history rows skipped</p>
+              <div className="grid gap-3">
+                {Object.entries(uploadQuality.sourceBreakdown ?? {}).map(([source, count]) => (
+                  <div
+                    key={source}
+                    className="flex items-center justify-between border-b border-[var(--panel-border,#1E293B)] py-2 text-sm"
+                  >
+                    <span className="font-semibold text-white">{source}</span>
+                    <span className="text-[#D4A853]">{count} plays</span>
+                  </div>
+                ))}
+                {!Object.keys(uploadQuality.sourceBreakdown ?? {}).length ? (
+                  <div className="border-b border-[var(--panel-border,#1E293B)] py-2 text-sm text-[#9CA3AF]">
+                    Source confidence will appear here when the uploaded format exposes it.
+                  </div>
+                ) : null}
               </div>
             </div>
-            <div className="grid gap-3">
-              {Object.entries(uploadQuality.sourceBreakdown ?? {}).map(([source, count]) => (
+            {uploadQuality.warnings.length ? (
+              <div className="mt-5 grid gap-2 border-t border-[var(--panel-border,#1E293B)] pt-3">
+              {uploadQuality.warnings.map((warning) => (
                 <div
-                  key={source}
-                  className="flex items-center justify-between rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-sm"
+                  key={warning}
+                  className="border-l border-amber-300/35 pl-3 text-sm text-amber-100"
                 >
-                  <span className="font-semibold text-white">{source}</span>
-                  <span className="text-[#D4A853]">{count} plays</span>
+                  {warning}
                 </div>
               ))}
-              {!Object.keys(uploadQuality.sourceBreakdown ?? {}).length ? (
-                <div className="rounded-[1.4rem] border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-sm text-[#9CA3AF]">
-                  Source confidence will appear here when the uploaded format exposes it.
-                </div>
-              ) : null}
-            </div>
-          </div>
-          {uploadQuality.warnings.length ? (
-            <div className="mt-4 grid gap-3">
-            {uploadQuality.warnings.map((warning) => (
-              <div
-                key={warning}
-                className="rounded-[1.4rem] border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-sm text-amber-100"
-              >
-                {warning}
               </div>
-            ))}
-            </div>
-          ) : null}
-        </Section>
-      ) : null}
+            ) : null}
+          </Section>
+        ) : null}
 
-      <DashboardControlPanel
-        dashboardDensity={dashboardDensity}
-        isYoutubeProfileMode={false}
-        onDashboardDensityChange={setDashboardDensity}
-        onDeleteSession={handleDeleteSession}
-        onOpenRecap={() => setIsRecapOpen(true)}
-        onRecapThemeChange={setRecapTheme}
-        onRestoreSession={handleRestoreSession}
-        onSaveSession={handleSaveSession}
-        onScrollToSection={scrollToSection}
-        recapTheme={recapTheme}
-        savedSessions={savedSessions}
-        statsPresent
-      />
+        <DashboardControlPanel
+          dashboardDensity={dashboardDensity}
+          isYoutubeProfileMode={false}
+          onDashboardDensityChange={setDashboardDensity}
+          onDeleteSession={handleDeleteSession}
+          onOpenRecap={() => setIsRecapOpen(true)}
+          onRecapThemeChange={setRecapTheme}
+          onRestoreSession={handleRestoreSession}
+          onSaveSession={handleSaveSession}
+          onScrollToSection={scrollToSection}
+          recapTheme={recapTheme}
+          savedSessions={savedSessions}
+          statsPresent
+        />
+      </div>
 
       <DashboardFiltersPanel
         artistOptions={artistOptions}
