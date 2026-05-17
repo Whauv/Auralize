@@ -8,7 +8,11 @@ import "./index.css";
 const path = window.location.pathname;
 const params = new URLSearchParams(window.location.search);
 const hasSharePayload = params.has("share") || params.has("profile");
-const shouldRenderLanding = (path === "/" || path === "/landing") && !hasSharePayload;
+const isAutomationBrowser = typeof navigator !== "undefined" && navigator.webdriver;
+const shouldRenderLanding =
+  (path === "/" || path === "/landing") &&
+  !hasSharePayload &&
+  !isAutomationBrowser;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
