@@ -25,6 +25,11 @@ type SourceStudioProps = {
   onDragLeave: DragEventHandler<HTMLDivElement>;
   onDrop: DragEventHandler<HTMLDivElement>;
   loadingIndicator: ReactNode;
+  uploadJourney?: {
+    stage: "ingested" | "parsing" | "enriching" | "ready";
+    progress: number;
+    etaSeconds: number | null;
+  } | null;
 };
 
 function SourceModeButton({
@@ -67,7 +72,7 @@ function UploadDropShell({
 }) {
   return (
     <div
-      className={`rounded-[1.75rem] border border-dashed px-6 py-10 transition ${
+      className={`upload-drop-shell rounded-[0.65rem] border border-dashed px-6 py-10 transition ${
         isDragActive
           ? "border-[#D4A853] bg-[#D4A853]/10"
           : "border-[#1E293B] bg-[#111827]"
@@ -99,9 +104,17 @@ export function SourceStudio({
   onDragLeave,
   onDrop,
   loadingIndicator,
+  uploadJourney = null,
 }: SourceStudioProps) {
+  const uploadStages = [
+    { id: "ingested", label: "Ingested", threshold: 10 },
+    { id: "parsing", label: "Parsing", threshold: 40 },
+    { id: "enriching", label: "Enriching", threshold: 75 },
+    { id: "ready", label: "Ready", threshold: 100 },
+  ] as const;
+
   return (
-    <form className="mt-8 flex flex-col gap-5" onSubmit={onSubmit}>
+    <form className="mt-0 flex flex-col gap-5" onSubmit={onSubmit}>
       <div className="flex flex-wrap gap-3">
         <SourceModeButton
           isActive={sourceMode === "takeout"}
@@ -305,7 +318,7 @@ export function SourceStudio({
           </div>
         </UploadDropShell>
       ) : (
-        <div className="rounded-[1.75rem] border border-[#1E293B] bg-[#111827] p-6">
+        <div className="rounded-[0.65rem] border border-[#1E293B] bg-[#111827] p-6">
           <label className="block text-sm font-semibold text-white">
             Last.fm Username or Profile URL
           </label>
@@ -344,18 +357,23 @@ export function SourceStudio({
                 </p>
               ) : null}
               {sourceMode === "takeout" ? (
-                <p className="text-xs text-[#9CA3AF]">
-                  Supports
-                  {" "}
-                  <code>watch-history.json</code>
-                  {" "}
-                  and
-                  {" "}
-                  <code>watch-history.json.gz</code>
-                  {" "}
-                  files. The button uses your file if one is selected. Otherwise, it uses the
-                  YouTube Music profile link.
-                </p>
+                <details className="text-xs text-[#9CA3AF] md:block" open>
+                  <summary className="cursor-pointer list-none font-medium text-[#aebad0] md:pointer-events-none md:cursor-default">
+                    Upload details
+                  </summary>
+                  <p className="mt-1">
+                    Supports
+                    {" "}
+                    <code>watch-history.json</code>
+                    {" "}
+                    and
+                    {" "}
+                    <code>watch-history.json.gz</code>
+                    {" "}
+                    files. The button uses your file if one is selected. Otherwise, it uses the
+                    YouTube Music profile link.
+                  </p>
+                </details>
               ) : sourceMode === "apple-music" ? (
                 <p className="text-xs text-[#9CA3AF]">
                   Apple Music mode builds the dashboard from a CSV or JSON export file.
@@ -374,6 +392,42 @@ export function SourceStudio({
           )}
 
           {isUploading ? loadingIndicator : null}
+          {uploadJourney ? (
+            <div className="mt-1 max-w-xl rounded-lg border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-3">
+              <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-[#F0D080]">
+                <span>Upload Journey</span>
+                <span>{uploadJourney.progress}%</span>
+              </div>
+              <div className="mb-3 h-2 overflow-hidden rounded-full bg-[#111827]">
+                <div
+                  className="h-full rounded-full bg-[#D4A853] transition-all duration-300"
+                  style={{ width: `${uploadJourney.progress}%` }}
+                />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-4">
+                {uploadStages.map((stage) => {
+                  const isActive = uploadJourney.progress >= stage.threshold;
+                  return (
+                    <div
+                      key={stage.id}
+                      className={`rounded-md border px-2 py-1 text-[11px] uppercase tracking-[0.14em] ${
+                        isActive
+                          ? "border-[#D4A853] bg-[#D4A853]/10 text-[#F0D080]"
+                          : "border-[#1E293B] bg-[#111827] text-[#8fa0ba]"
+                      }`}
+                    >
+                      {stage.label}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-[#9CA3AF]">
+                {uploadJourney.etaSeconds === null
+                  ? "Finalizing analysis..."
+                  : `Estimated time remaining: ${uploadJourney.etaSeconds}s`}
+              </p>
+            </div>
+          ) : null}
           {error ? (
             <p aria-live="assertive" className="text-sm text-rose-300" role="alert">
               {error}

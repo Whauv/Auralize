@@ -665,6 +665,8 @@ function AmbientMusicScene() {
   );
 }
 
+void AmbientMusicScene;
+
 function HeroAlbumStack({
   songs,
   accent
@@ -713,6 +715,50 @@ function HeroAlbumStack({
   );
 }
 
+function AmbientListeningTrails({ performanceMode }: { performanceMode: PerformanceMode }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`ambient-stage ${
+        performanceMode === "smooth" ? "ambient-stage--smooth" : "ambient-stage--cinematic"
+      }`}
+    >
+      <div className="ambient-atmosphere" />
+      <svg
+        className="ambient-trails"
+        viewBox="0 0 1440 960"
+        preserveAspectRatio="xMidYMid slice"
+        role="presentation"
+      >
+        <path
+          className="ambient-trail ambient-trail-strong"
+          d="M-44 188 C 134 122, 300 286, 486 228 C 690 164, 852 326, 1038 272 C 1198 225, 1348 322, 1496 284"
+        />
+        <path
+          className="ambient-trail ambient-trail-soft"
+          d="M-68 348 C 120 288, 304 420, 520 364 C 742 308, 894 462, 1082 420 C 1256 382, 1380 474, 1528 446"
+        />
+        <path
+          className="ambient-trail ambient-trail-strong"
+          d="M-78 548 C 140 482, 312 616, 530 556 C 740 498, 934 644, 1148 586 C 1288 548, 1410 640, 1538 612"
+        />
+        <path
+          className="ambient-trail ambient-trail-soft"
+          d="M-96 756 C 170 682, 346 828, 586 756 C 818 686, 994 824, 1212 770 C 1340 736, 1452 810, 1580 784"
+        />
+        <circle className="ambient-node ambient-node-gold ambient-node-pulse" cx="486" cy="228" r="3.2" />
+        <circle className="ambient-node ambient-node-blue" cx="1038" cy="272" r="2.6" />
+        <circle className="ambient-node ambient-node-gold ambient-node-pulse" cx="520" cy="364" r="3" />
+        <circle className="ambient-node ambient-node-blue" cx="1082" cy="420" r="2.5" />
+        <circle className="ambient-node ambient-node-gold ambient-node-pulse" cx="530" cy="556" r="3.3" />
+        <circle className="ambient-node ambient-node-blue" cx="1148" cy="586" r="2.5" />
+        <circle className="ambient-node ambient-node-gold ambient-node-pulse" cx="586" cy="756" r="3.1" />
+        <circle className="ambient-node ambient-node-blue" cx="1212" cy="770" r="2.4" />
+      </svg>
+    </div>
+  );
+}
+
 export default function App() {
   const prefersReducedMotion = useReducedMotion();
   const progressScale = 1;
@@ -726,6 +772,7 @@ export default function App() {
   const [sharedProfile, setSharedProfile] = useState<PublicProfileSharePayload | null>(null);
   const [uploadQuality, setUploadQuality] = useState<UploadQualitySummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -751,6 +798,27 @@ export default function App() {
   const advancedAnalyticsRequestId = useRef(0);
   const advancedAnalyticsWorker = useRef<Worker | null>(null);
   const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
+  const uploadJourney = useMemo(() => {
+    if (!analysisProgress || uploadStartedAt === null) {
+      return null;
+    }
+    const progress = Math.max(0, Math.min(100, analysisProgress.progress ?? 0));
+    let stage: "ingested" | "parsing" | "enriching" | "ready" = "ingested";
+    if (progress >= 100 || analysisProgress.status === "complete") {
+      stage = "ready";
+    } else if (progress >= 70) {
+      stage = "enriching";
+    } else if (progress >= 30) {
+      stage = "parsing";
+    }
+
+    const elapsedMs = Date.now() - uploadStartedAt;
+    const etaSeconds =
+      progress > 3 && progress < 100
+        ? Math.max(1, Math.round(((100 - progress) / progress) * (elapsedMs / 1000)))
+        : null;
+    return { stage, progress, etaSeconds };
+  }, [analysisProgress, uploadStartedAt]);
 
   useEffect(() => {
     const publicProfileEncoded = new URLSearchParams(window.location.search).get(PROFILE_SHARE_PARAM);
@@ -1243,6 +1311,7 @@ export default function App() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsUploading(true);
+    setUploadStartedAt(Date.now());
     setError(null);
     setActionMessage(null);
     setAnalysisProgress(null);
@@ -1269,6 +1338,7 @@ export default function App() {
     } finally {
       setIsUploading(false);
       setAnalysisProgress(null);
+      setUploadStartedAt(null);
     }
   }
 
@@ -1377,7 +1447,7 @@ export default function App() {
           </motion.div>
         ) : null}
       </AnimatePresence>
-      {performanceMode === "cinematic" ? <AmbientMusicScene /> : null}
+      <AmbientListeningTrails performanceMode={performanceMode} />
       {stats && !isYoutubeProfileMode ? (
         <Suspense fallback={null}>
           <RecapView
@@ -1404,7 +1474,7 @@ export default function App() {
         transition={{ duration: 1, ease: [0.19, 1, 0.22, 1] }}
       >
         <motion.section
-          className="hero-shell relative overflow-hidden rounded-[2rem] border p-6 shadow-[0_34px_120px_rgba(0,0,0,0.45)] md:p-8"
+          className="hero-shell editorial-hero relative overflow-hidden border shadow-[0_34px_120px_rgba(0,0,0,0.45)]"
           style={{
             borderColor: dashboardTheme.panelBorder,
             background: dashboardTheme.heroGradient
@@ -1414,8 +1484,8 @@ export default function App() {
           transition={{ duration: 0.5, ease: "easeOut" }}
         >
           <div className="absolute inset-0" style={{ backgroundImage: dashboardTheme.heroGlow }} />
-          <div className="relative">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="relative p-5 md:p-7">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--panel-border,#1E293B)] pb-4">
               <p className="text-xs uppercase tracking-[0.3em] text-[#F59E0B]">Theme</p>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap gap-2">
@@ -1459,7 +1529,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <div className="grid gap-8 xl:grid-cols-[minmax(0,1.05fr)_360px] xl:items-start">
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1.02fr)_370px] xl:items-start">
               <div>
                 <p className="mb-3 text-sm uppercase tracking-[0.35em]" style={{ color: dashboardTheme.accent }}>
                   Your Music DNA
@@ -1485,57 +1555,76 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col gap-4 xl:items-end">
-                {dashboard?.source === "lastfm" ? (
-                  <span className="hero-chip w-fit rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
-                    Live Mode
-                  </span>
-                ) : isYoutubeProfileMode ? (
-                  <span className="hero-chip w-fit rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
-                    Public Profile Preview
-                  </span>
-                ) : null}
-                <HeroAlbumStack songs={topSongs} accent={dashboardTheme.accent} />
+              <div className="hero-rail-shell">
+                <div className="hero-rail-grid">
+                  <div className="hero-rail-cell">
+                    <p className="hero-rail-kicker">Open</p>
+                    <p className="hero-rail-label">Listening scale</p>
+                  </div>
+                  <div className="hero-rail-cell">
+                    <p className="hero-rail-kicker">Middle</p>
+                    <p className="hero-rail-label">Artist web and taste arcs</p>
+                  </div>
+                  <div className="hero-rail-cell">
+                    <p className="hero-rail-kicker">Finale</p>
+                    <p className="hero-rail-label">Passport and finale card</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-col gap-4 xl:items-end">
+                  {dashboard?.source === "lastfm" ? (
+                    <span className="hero-chip w-fit rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
+                      Live Mode
+                    </span>
+                  ) : isYoutubeProfileMode ? (
+                    <span className="hero-chip w-fit rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#67C3C0]">
+                      Public Profile Preview
+                    </span>
+                  ) : null}
+                  <HeroAlbumStack songs={topSongs} accent={dashboardTheme.accent} />
+                </div>
               </div>
             </div>
 
-            <SourceStudio
-              actionMessage={
-                analysisProgress
-                  ? `${analysisProgress.message} ${analysisProgress.progress}%`
-                  : actionMessage
-              }
-              error={error}
-              fileName={file?.name ?? null}
-              isDragActive={isDragActive}
-              isUploading={isUploading}
-              lastFmUsername={lastFmUsername}
-              loadingIndicator={
-                analysisProgress ? (
-                  <div className="max-w-md">
-                    <LoadingSpinner />
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#0F172A]">
-                      <div
-                        className="h-full rounded-full bg-[#D4A853] transition-all"
-                        style={{ width: `${analysisProgress.progress}%` }}
-                      />
+            <div className="source-studio-shell">
+              <SourceStudio
+                actionMessage={
+                  analysisProgress
+                    ? `${analysisProgress.message} ${analysisProgress.progress}%`
+                    : actionMessage
+                }
+                error={error}
+                fileName={file?.name ?? null}
+                isDragActive={isDragActive}
+                isUploading={isUploading}
+                lastFmUsername={lastFmUsername}
+                loadingIndicator={
+                  analysisProgress ? (
+                    <div className="max-w-md">
+                      <LoadingSpinner />
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#0F172A]">
+                        <div
+                          className="h-full rounded-full bg-[#D4A853] transition-all"
+                          style={{ width: `${analysisProgress.progress}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <LoadingSpinner />
-                )
-              }
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onFileChange={handleFileChange}
-              onLastFmUsernameChange={(event) => setLastFmUsername(event.target.value)}
-              onSourceModeChange={setSourceMode}
-              onSubmit={handleSubmit}
-              onYoutubeMusicProfileUrlChange={handleYoutubeMusicProfileUrlChange}
-              sourceMode={sourceMode}
-              youtubeMusicProfileUrl={youtubeMusicProfileUrl}
-            />
+                  ) : (
+                    <LoadingSpinner />
+                  )
+                }
+                uploadJourney={uploadJourney}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onFileChange={handleFileChange}
+                onLastFmUsernameChange={(event) => setLastFmUsername(event.target.value)}
+                onSourceModeChange={setSourceMode}
+                onSubmit={handleSubmit}
+                onYoutubeMusicProfileUrlChange={handleYoutubeMusicProfileUrlChange}
+                sourceMode={sourceMode}
+                youtubeMusicProfileUrl={youtubeMusicProfileUrl}
+              />
+            </div>
           </div>
         </motion.section>
 
