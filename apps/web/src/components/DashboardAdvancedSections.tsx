@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Section } from "./DashboardBits";
 import type {
   AchievementBadge,
@@ -33,6 +33,9 @@ export function DashboardAdvancedSections({
   recentHistory: EnrichedHistoryEntry[];
 }) {
   const [activeTab, setActiveTab] = useState<"taste" | "archive" | "create">("taste");
+  const [showArchiveMeta, setShowArchiveMeta] = useState(false);
+  const memoryLaneWindow = useMemo(() => memoryLane.slice(0, 18), [memoryLane]);
+  const historyWindow = useMemo(() => recentHistory.slice(0, 24), [recentHistory]);
 
   return (
     <>
@@ -99,7 +102,7 @@ export function DashboardAdvancedSections({
               {selectedPlaylist.tracks.slice(0, 6).map((track, index) => (
                 <article
                   key={track.videoId}
-                  className="flex items-center gap-4 rounded-[1.4rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-4"
+                  className="flex items-center gap-3 rounded-[1.4rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-3 md:gap-4 md:p-4"
                 >
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-[var(--accent-soft,#F0D080)]"
@@ -117,10 +120,10 @@ export function DashboardAdvancedSections({
                     <div className="h-14 w-14 rounded-2xl bg-[var(--panel-muted,#1F2937)]" />
                   )}
                   <div className="min-w-0">
-                    <h3 className="truncate text-base font-semibold text-[var(--heading,#FFFFFF)]">
+                    <h3 className="truncate text-sm font-semibold text-[var(--heading,#FFFFFF)] md:text-base">
                       {track.title}
                     </h3>
-                    <p className="truncate text-sm text-[var(--subtext,#9CA3AF)]">
+                    <p className="truncate text-xs text-[var(--subtext,#9CA3AF)] md:text-sm">
                       {track.artist}
                     </p>
                   </div>
@@ -138,23 +141,23 @@ export function DashboardAdvancedSections({
           subtitle="Your listening identity and the strongest quick-take observations, combined into one cleaner read."
           className="insight-box"
         >
-          <div className="grid gap-4">
+          <div className="grid gap-3 md:gap-4">
             {personaProfile ? (
-              <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-5">
+              <div className="rounded-[1.75rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-4 md:p-5">
                 <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">
                   Listening Persona
                 </p>
-                <h3 className="mt-3 text-3xl font-semibold text-[var(--heading,#FFFFFF)]">
+                <h3 className="mt-3 text-2xl font-semibold text-[var(--heading,#FFFFFF)] md:text-3xl">
                   {personaProfile.title}
                 </h3>
-                <p className="mt-3 text-sm text-[var(--subtext,#9CA3AF)]">
+                <p className="mt-2 text-sm text-[var(--subtext,#9CA3AF)]">
                   {personaProfile.subtitle}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   {personaProfile.traits.map((trait) => (
                     <span
                       key={trait}
-                      className="rounded-full border px-4 py-2 text-sm"
+                      className="rounded-full border px-3 py-1.5 text-xs md:px-4 md:py-2 md:text-sm"
                       style={{
                         borderColor: "color-mix(in srgb, var(--accent,#D4A853) 20%, transparent)",
                         backgroundColor: "color-mix(in srgb, var(--accent,#D4A853) 10%, transparent)",
@@ -172,12 +175,12 @@ export function DashboardAdvancedSections({
               {smartInsights.map((insight) => (
                 <article
                   key={insight.title}
-                  className="rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-4"
+                  className="rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-3 md:p-4"
                 >
                   <h3 className="text-lg font-semibold text-[var(--heading,#FFFFFF)]">
                     {insight.title}
                   </h3>
-                  <p className="mt-2 text-sm text-[var(--subtext,#9CA3AF)]">{insight.body}</p>
+                  <p className="mt-1.5 text-sm text-[var(--subtext,#9CA3AF)]">{insight.body}</p>
                 </article>
               ))}
             </div>
@@ -189,14 +192,14 @@ export function DashboardAdvancedSections({
           subtitle="How your dominant sound shifted across recent windows in the current timeframe."
           className="insight-box insight-box-soft"
         >
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 md:gap-4">
             {tasteEvolution.map((point) => (
               <article
                 key={`${point.label}-${point.topArtist}`}
-                className="rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-5"
+                className="rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-4 md:p-5"
               >
                 <p className="text-xs uppercase tracking-[0.28em] text-[#F59E0B]">{point.label}</p>
-                <p className="mt-3 text-2xl font-semibold text-[var(--heading,#FFFFFF)]">
+                <p className="mt-2 text-xl font-semibold text-[var(--heading,#FFFFFF)] md:text-2xl">
                   {point.topGenre}
                 </p>
                 <p className="mt-2 text-sm text-[var(--subtext,#9CA3AF)]">
@@ -219,27 +222,27 @@ export function DashboardAdvancedSections({
           subtitle="Songs that have been with you the longest in the current snapshot."
           className="insight-box"
         >
-          <div className="grid gap-3">
-            {memoryLane.map((entry) => (
+          <div className="grid gap-2.5 md:gap-3">
+            {memoryLaneWindow.map((entry) => (
               <article
                 key={`${entry.videoId}-${entry.firstPlayed}`}
-                className="flex items-center gap-4 rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-4"
+                className="flex items-center gap-3 rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-3 md:gap-4 md:p-4"
               >
                 {entry.thumbnail ? (
                   <img
                     src={entry.thumbnail}
                     alt={entry.title}
-                    className="h-16 w-16 rounded-2xl object-cover"
+                    className="h-14 w-14 rounded-xl object-cover md:h-16 md:w-16 md:rounded-2xl"
                   />
                 ) : (
-                  <div className="h-16 w-16 rounded-2xl bg-[var(--panel-muted,#1F2937)]" />
+                  <div className="h-14 w-14 rounded-xl bg-[var(--panel-muted,#1F2937)] md:h-16 md:w-16 md:rounded-2xl" />
                 )}
                 <div className="min-w-0">
-                  <h3 className="truncate text-lg font-semibold text-[var(--heading,#FFFFFF)]">
+                  <h3 className="truncate text-base font-semibold text-[var(--heading,#FFFFFF)] md:text-lg">
                     {entry.title}
                   </h3>
                   <p className="truncate text-sm text-[var(--subtext,#9CA3AF)]">{entry.artist}</p>
-                  <p className="mt-2 text-xs text-[var(--accent-soft,#F0D080)]">
+                  <p className="mt-1.5 text-xs text-[var(--accent-soft,#F0D080)]">
                     First heard {formatTimestamp(entry.firstPlayed)}
                   </p>
                 </div>
@@ -296,24 +299,37 @@ export function DashboardAdvancedSections({
         subtitle="A compact view of the enriched records powering this dashboard."
         className="insight-box"
       >
-        <div className="grid gap-3">
-          {recentHistory.slice(0, 8).map((entry) => (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <button
+            className="rounded-full border border-[var(--panel-border,#1E293B)] bg-[var(--panel-bg,#111827)] px-3 py-1.5 text-xs font-semibold text-[var(--heading,#FFFFFF)] transition hover:border-[var(--accent,#D4A853)]"
+            onClick={() => setShowArchiveMeta((current) => !current)}
+            type="button"
+          >
+            {showArchiveMeta ? "Hide secondary metadata" : "Show secondary metadata"}
+          </button>
+          <p className="text-xs text-[var(--subtext,#9CA3AF)]">{historyWindow.length} latest rows shown</p>
+        </div>
+        <div className="max-h-[540px] overflow-y-auto pr-1">
+          <div className="grid gap-2.5 md:gap-3">
+            {historyWindow.map((entry) => (
             <article
               key={entry.videoId}
-              className="flex flex-col gap-4 rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-4 md:flex-row md:items-center md:justify-between"
+              className="flex flex-col gap-3 rounded-[1.5rem] border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] p-3 md:flex-row md:items-center md:justify-between md:p-4"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 md:gap-4">
                 {entry.thumbnail ? (
-                  <img src={entry.thumbnail} alt={entry.title} className="h-16 w-16 rounded-2xl object-cover" />
+                  <img src={entry.thumbnail} alt={entry.title} className="h-14 w-14 rounded-xl object-cover md:h-16 md:w-16 md:rounded-2xl" />
                 ) : (
-                  <div className="h-16 w-16 rounded-2xl bg-[var(--panel-muted,#1F2937)]" />
+                  <div className="h-14 w-14 rounded-xl bg-[var(--panel-muted,#1F2937)] md:h-16 md:w-16 md:rounded-2xl" />
                 )}
                 <div>
                   <h3 className="text-base font-semibold text-[var(--heading,#FFFFFF)]">{entry.title}</h3>
                   <p className="text-sm text-[var(--subtext,#9CA3AF)]">{entry.artist}</p>
-                  <p className="mt-1 text-xs text-[var(--subtext,#9CA3AF)]">
-                    {entry.tags.slice(0, 3).join(" | ") || "No tags"}
-                  </p>
+                  {showArchiveMeta ? (
+                    <p className="mt-1 text-xs text-[var(--subtext,#9CA3AF)]">
+                      {entry.tags.slice(0, 3).join(" | ") || "No tags"}
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -326,17 +342,20 @@ export function DashboardAdvancedSections({
                 >
                   {entry.playCount} plays
                 </span>
-                <span className="rounded-full bg-[var(--panel-bg,#111827)] px-3 py-1 text-xs text-[var(--subtext,#9CA3AF)]">
-                  {entry.duration}
-                </span>
-                {entry.timestamps[0] ? (
+                {showArchiveMeta ? (
+                  <span className="rounded-full bg-[var(--panel-bg,#111827)] px-3 py-1 text-xs text-[var(--subtext,#9CA3AF)]">
+                    {entry.duration}
+                  </span>
+                ) : null}
+                {showArchiveMeta && entry.timestamps[0] ? (
                   <span className="rounded-full bg-[var(--panel-bg,#111827)] px-3 py-1 text-xs text-[var(--subtext,#9CA3AF)]">
                     {formatTimestamp(entry.timestamps[0])}
                   </span>
                 ) : null}
               </div>
             </article>
-          ))}
+            ))}
+          </div>
         </div>
       </Section>
       ) : null}

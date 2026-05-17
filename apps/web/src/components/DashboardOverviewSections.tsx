@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -19,6 +20,7 @@ import type {
 import { truncateLabel } from "../lib/utils";
 import {
   ArtistClusterWeb,
+  ChartEmptyState,
   ChartTooltip,
   ListeningHeatmap,
   Section,
@@ -55,7 +57,16 @@ export function DashboardOverviewSections({
 }: DashboardOverviewSectionsProps) {
   const gridStroke = "color-mix(in srgb, var(--panel-border,#1E293B) 52%, transparent)";
   const axisStroke = "color-mix(in srgb, var(--subtext,#9CA3AF) 74%, transparent)";
-  const axisTick = { fill: "var(--subtext,#9CA3AF)", fontSize: 12 };
+  const axisTick = { fill: "var(--subtext,#9CA3AF)", fontSize: 11 };
+  const compactTopArtists = useMemo(
+    () =>
+      topArtists.map((entry) => ({
+        ...entry,
+        artist: truncateLabel(entry.artist, 18),
+      })),
+    [topArtists],
+  );
+  const hasPrimaryData = topSongs.length > 0 || topArtists.length > 0;
 
   return (
     <>
@@ -65,30 +76,34 @@ export function DashboardOverviewSections({
         className="insight-box"
       >
         <div className="h-[380px] md:h-[460px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={topSongs}
-              layout="vertical"
-              margin={{
-                top: 10,
-                right: 10,
-                left: typeof window !== "undefined" && window.innerWidth < 768 ? 135 : 170,
-                bottom: 0
-              }}
-            >
-              <CartesianGrid stroke={gridStroke} horizontal={false} />
-              <XAxis type="number" stroke={axisStroke} tick={axisTick} />
-              <YAxis
-                type="category"
-                dataKey="title"
-                width={typeof window !== "undefined" && window.innerWidth < 768 ? 145 : 180}
-                tick={(props) => <SongTick {...props} songs={topSongs} />}
-                stroke="transparent"
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="playCount" radius={[0, 12, 12, 0]} fill={dashboardTheme.chartPrimary} />
-            </BarChart>
-          </ResponsiveContainer>
+          {topSongs.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={topSongs}
+                layout="vertical"
+                margin={{
+                  top: 8,
+                  right: 12,
+                  left: 150,
+                  bottom: 6
+                }}
+              >
+                <CartesianGrid stroke={gridStroke} horizontal={false} />
+                <XAxis type="number" stroke={axisStroke} tick={axisTick} />
+                <YAxis
+                  type="category"
+                  dataKey="title"
+                  width={160}
+                  tick={(props) => <SongTick {...props} songs={topSongs} />}
+                  stroke="transparent"
+                />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.08)" }} />
+                <Bar dataKey="playCount" radius={[0, 10, 10, 0]} fill={dashboardTheme.chartPrimary} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmptyState label="No ranked songs yet for this timeframe." />
+          )}
         </div>
       </Section>
 
@@ -98,33 +113,34 @@ export function DashboardOverviewSections({
         className="insight-box insight-box-soft"
       >
         <div className="h-[320px] md:h-[360px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={topArtists.map((entry) => ({
-                ...entry,
-                artist: truncateLabel(entry.artist, 18)
-              }))}
-              margin={{ top: 10, right: 20, left: 0, bottom: 50 }}
-            >
-              <CartesianGrid stroke={gridStroke} vertical={false} />
-              <XAxis
-                dataKey="artist"
-                angle={-18}
-                textAnchor="end"
-                interval={0}
-                height={70}
-                stroke={axisStroke}
-                tick={axisTick}
-              />
-              <YAxis stroke={axisStroke} tick={axisTick} />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartSecondary} />
-            </BarChart>
-          </ResponsiveContainer>
+          {compactTopArtists.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={compactTopArtists}
+                margin={{ top: 8, right: 16, left: 0, bottom: 44 }}
+              >
+                <CartesianGrid stroke={gridStroke} vertical={false} />
+                <XAxis
+                  dataKey="artist"
+                  angle={-18}
+                  textAnchor="end"
+                  interval={0}
+                  height={62}
+                  stroke={axisStroke}
+                  tick={axisTick}
+                />
+                <YAxis stroke={axisStroke} tick={axisTick} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.08)" }} />
+                <Bar dataKey="playCount" radius={[10, 10, 0, 0]} fill={dashboardTheme.chartSecondary} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmptyState label="No artist rankings yet for this timeframe." />
+          )}
         </div>
       </Section>
 
-      {!isSimpleDashboard ? (
+      {!isSimpleDashboard && hasPrimaryData ? (
         <Section
           title="Artist Web"
           subtitle="A living constellation of the artists shaping this listening window."
@@ -164,7 +180,7 @@ export function DashboardOverviewSections({
               </ResponsiveContainer>
             </div>
             <div className="space-y-3">
-              {genreBreakdown.map((entry, index) => (
+              {genreBreakdown.length ? genreBreakdown.map((entry, index) => (
                 <div key={entry.genre} className="rounded-2xl border border-[#1E293B] bg-[#0F172A] px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -181,7 +197,7 @@ export function DashboardOverviewSections({
                   </div>
                   <p className="mt-2 text-sm text-[#9CA3AF]">{entry.count} plays</p>
                 </div>
-              ))}
+              )) : <ChartEmptyState label="Genre classification appears after enough track metadata is available." />}
             </div>
           </div>
         </Section>
@@ -193,15 +209,19 @@ export function DashboardOverviewSections({
             className="insight-box"
           >
             <div className="h-[280px] md:h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={moodTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke={gridStroke} vertical={false} />
-                  <XAxis dataKey="mood" stroke={axisStroke} tick={axisTick} />
-                  <YAxis stroke={axisStroke} tick={axisTick} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="playCount" radius={[12, 12, 0, 0]} fill={dashboardTheme.chartTertiary} />
-                </BarChart>
-              </ResponsiveContainer>
+              {moodTimeline.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={moodTimeline} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                    <CartesianGrid stroke={gridStroke} vertical={false} />
+                    <XAxis dataKey="mood" stroke={axisStroke} tick={axisTick} />
+                    <YAxis stroke={axisStroke} tick={axisTick} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.08)" }} />
+                    <Bar dataKey="playCount" radius={[10, 10, 0, 0]} fill={dashboardTheme.chartTertiary} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ChartEmptyState label="Mood buckets appear when timestamp coverage is available." />
+              )}
             </div>
           </Section>
         ) : (

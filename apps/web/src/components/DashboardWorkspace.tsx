@@ -5,6 +5,7 @@ import {
   type SetStateAction,
   Suspense,
   lazy,
+  useMemo,
 } from "react";
 
 import { ChartSkeleton, Section } from "./DashboardBits";
@@ -165,6 +166,80 @@ export function DashboardWorkspace({
     setSelectedArtist("");
     setSelectedMood("");
   };
+  const quickInsights = useMemo(() => {
+    if (!stats) {
+      return [];
+    }
+    const totalTracks = stats.rawEnrichedHistory.length;
+    const leadSong = topSongs[0];
+    const leadArtist = topArtists[0];
+    const leadGenre = genreBreakdown[0];
+    const leadMood = moodTimeline[0];
+    return [
+      leadArtist
+        ? `${leadArtist.artist} leads this window with ${leadArtist.playCount} plays.`
+        : null,
+      leadGenre
+        ? `${leadGenre.genre} drives ${leadGenre.percentage}% of your listening profile.`
+        : null,
+      leadSong
+        ? `${leadSong.title} is your top replay, shaping this timeframe’s signal.`
+        : null,
+      leadMood
+        ? `${leadMood.mood} is your strongest mood bucket with ${leadMood.playCount} plays.`
+        : null,
+      totalTracks ? `${totalTracks} enriched tracks are powering this dashboard.` : null,
+    ].filter((value): value is string => Boolean(value)).slice(0, 3);
+  }, [stats, topArtists, topSongs, genreBreakdown, moodTimeline]);
+
+  const dataSignals = useMemo(() => {
+    if (!stats || !uploadQuality) {
+      return { confidence: "N/A", anomalies: [] as string[] };
+    }
+
+    const anomalies: string[] = [];
+    const history = stats.rawEnrichedHistory;
+    const timestamps = history.flatMap((entry) => entry.timestamps).map((value) => Date.parse(value)).filter((value) => Number.isFinite(value));
+    const uniqueTimestamps = new Set(timestamps).size;
+    const duplicateRatio = timestamps.length ? (timestamps.length - uniqueTimestamps) / timestamps.length : 0;
+    if (duplicateRatio > 0.08) {
+      anomalies.push("Repeated timestamp clusters detected. Some plays may be duplicated.");
+    }
+
+    const playsByDay = new Map<string, number>();
+    history.forEach((entry) => {
+      entry.timestamps.forEach((stamp) => {
+        const parsed = Date.parse(stamp);
+        if (!Number.isFinite(parsed)) {
+          return;
+        }
+        const key = new Date(parsed).toISOString().slice(0, 10);
+        playsByDay.set(key, (playsByDay.get(key) ?? 0) + 1);
+      });
+    });
+    const dayCounts = [...playsByDay.values()];
+    if (dayCounts.length > 6) {
+      const average = dayCounts.reduce((sum, value) => sum + value, 0) / dayCounts.length;
+      const spike = Math.max(...dayCounts);
+      if (average > 0 && spike > average * 3.5) {
+        anomalies.push("A strong listening spike was found in one day. Compare timeframe windows.");
+      }
+    }
+
+    if (uploadQuality.searchEntries > uploadQuality.usableEntries * 0.55) {
+      anomalies.push("High ignored-search ratio may reduce confidence in trend precision.");
+    }
+
+    const confidenceScore = Math.max(
+      52,
+      100
+        - Math.min(24, Math.round(duplicateRatio * 120))
+        - Math.min(18, Math.round((uploadQuality.searchEntries / Math.max(1, uploadQuality.totalEntries)) * 36))
+        - (anomalies.length ? anomalies.length * 5 : 0),
+    );
+    const confidence = confidenceScore >= 88 ? "High" : confidenceScore >= 72 ? "Moderate" : "Needs review";
+    return { confidence, anomalies };
+  }, [stats, uploadQuality]);
 
   if (isUploading) {
     return (
@@ -250,6 +325,23 @@ export function DashboardWorkspace({
           </div>
       </Section>
 
+      <Section
+        title="First Insight In 5 Seconds"
+        subtitle="Three strongest signals surfaced instantly from the current dashboard window."
+        className="insight-box"
+      >
+        <div className="grid gap-3 md:grid-cols-3">
+          {quickInsights.map((insight) => (
+            <article
+              key={insight}
+              className="rounded-lg border border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] px-4 py-3 text-sm text-[var(--heading,#FFFFFF)]"
+            >
+              {insight}
+            </article>
+          ))}
+        </div>
+      </Section>
+
       {uploadQuality ? (
         <Section
           title="Data Quality Review"
@@ -271,6 +363,11 @@ export function DashboardWorkspace({
                     {uploadQuality.searchEntries}
                   </p>
                   <p className="mt-1 text-xs text-[#9CA3AF]">search-history rows skipped</p>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <p className="text-xs uppercase tracking-[0.26em] text-[#F59E0B]">Source confidence</p>
+                  <p className="mt-2 text-xl font-semibold text-white">{dataSignals.confidence}</p>
+                  <p className="mt-1 text-xs text-[#9CA3AF]">based on duplicates, ignored entries, and data spread</p>
                 </div>
               </div>
               <div className="grid gap-3">
@@ -300,6 +397,18 @@ export function DashboardWorkspace({
                   {warning}
                 </div>
               ))}
+              </div>
+            ) : null}
+            {dataSignals.anomalies.length ? (
+              <div className="mt-4 grid gap-2 border-t border-[var(--panel-border,#1E293B)] pt-3">
+                {dataSignals.anomalies.map((anomaly) => (
+                  <div
+                    key={anomaly}
+                    className="border-l border-rose-300/35 pl-3 text-sm text-rose-100"
+                  >
+                    {anomaly}
+                  </div>
+                ))}
               </div>
             ) : null}
         </Section>

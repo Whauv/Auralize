@@ -21,7 +21,7 @@ export function Section({
 }) {
   return (
     <section
-      className={`section-panel border-t border-[var(--panel-border,#1E293B)] px-1 py-8 ${className}`}
+      className={`section-panel section-panel-surface px-4 py-6 md:px-5 md:py-7 ${className}`}
     >
       <div className="section-head mb-4 flex flex-col gap-1">
         <p className="text-xs uppercase tracking-[0.35em] text-[#F59E0B]">
@@ -84,11 +84,19 @@ export function ChartTooltip({
   const value = payload[0]?.value;
   return (
     <div
-      className="rounded-2xl border border-[var(--panel-border,#1E293B)] px-4 py-3 text-sm text-slate-100 shadow-2xl shadow-black/30"
+      className="chart-tooltip rounded-lg border border-[var(--panel-border,#1E293B)] px-4 py-3 text-sm text-slate-100 shadow-2xl shadow-black/30"
       style={{ backgroundColor: "color-mix(in srgb, var(--panel-bg,#111827) 95%, transparent)" }}
     >
       {label ? <p className="font-medium text-[var(--heading,#FFFFFF)]">{label}</p> : null}
       <p className="mt-1 text-[var(--accent,#D4A853)]">{value} plays</p>
+    </div>
+  );
+}
+
+export function ChartEmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-[var(--panel-border,#1E293B)] bg-[var(--panel-alt,#0F172A)] px-4 text-center text-sm text-[var(--subtext,#9CA3AF)]">
+      {label}
     </div>
   );
 }
