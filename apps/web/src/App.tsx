@@ -665,6 +665,8 @@ function AmbientMusicScene() {
   );
 }
 
+void AmbientMusicScene;
+
 function HeroAlbumStack({
   songs,
   accent
