@@ -30,14 +30,20 @@ export function AuraliseLandingPage() {
             </div>
           </div>
           <nav className="aur2-nav">
+            <a href="#overview">Overview</a>
             <a href="#why">Why Auralize exists</a>
             <a href="#how">How Auralize works</a>
+            <a href="#install">Install</a>
             <a href="#stack">Built with</a>
-            <a href="#story">Project creation story</a>
+            <a href="#links">Links</a>
           </nav>
           <div className="aur2-actions">
-            <a className="aur2-btn" href={githubUrl} target="_blank" rel="noreferrer">View source on GitHub</a>
-            <a className="aur2-btn aur2-btn-primary" href={liveAppUrl} target="_blank" rel="noreferrer">Build dashboard or preview</a>
+            <a className="aur2-btn" href={githubUrl} target="_blank" rel="noreferrer">
+              View source on GitHub
+            </a>
+            <a className="aur2-btn aur2-btn-primary" href={liveAppUrl} target="_blank" rel="noreferrer">
+              Open Auralize product
+            </a>
           </div>
         </div>
       </header>
@@ -58,8 +64,43 @@ export function AuraliseLandingPage() {
               <span className="aur2-chip">Apple Music import</span>
             </div>
             <div className="aur2-cta-row">
-              <a className="aur2-btn aur2-btn-primary" href={liveAppUrl} target="_blank" rel="noreferrer">Build dashboard or preview</a>
+              <a className="aur2-btn aur2-btn-primary" href={liveAppUrl} target="_blank" rel="noreferrer">
+                Open Auralize product
+              </a>
+              <a className="aur2-btn" href={githubUrl} target="_blank" rel="noreferrer">
+                View source on GitHub
+              </a>
             </div>
+          </div>
+        </section>
+
+        <section id="overview" className="aur2-shell aur2-band">
+          <div className="aur2-section-head">
+            <p className="aur2-kicker">Overview</p>
+            <h2>One product, multiple music sources, one explainable identity layer.</h2>
+            <p>
+              Auralize lets users upload or connect listening history from YouTube Music, unified
+              YouTube + Music, Apple Music exports, Last.fm Live Mode, and profile previews, then
+              turns it into behavior-level insights and share-ready outputs.
+            </p>
+          </div>
+          <div className="aur2-interesting">
+            <article>
+              <h3>What it does</h3>
+              <p>Transforms raw history into top songs, artists, moods, genres, trends, and recaps.</p>
+            </article>
+            <article>
+              <h3>Who it is for</h3>
+              <p>Music lovers, data-curious users, and creators who want meaningful recap storytelling.</p>
+            </article>
+            <article>
+              <h3>What users get</h3>
+              <p>Dashboard analytics, compare mode, session saving, and export/share passport surfaces.</p>
+            </article>
+            <article>
+              <h3>Trust layer</h3>
+              <p>Data quality review and source breakdown to explain what was used or excluded.</p>
+            </article>
           </div>
         </section>
 
@@ -93,6 +134,51 @@ export function AuraliseLandingPage() {
             <div className="aur2-flow-step"><p>Processing</p><strong>Parsing, normalization, source tagging, artist/title cleanup</strong></div>
             <div className="aur2-flow-step"><p>Analytics</p><strong>Timeframe filters, trend extraction, genre/mood/stat synthesis</strong></div>
             <div className="aur2-flow-step"><p>Output</p><strong>Dashboard, recap-ready views, music passport, share surfaces</strong></div>
+          </div>
+        </section>
+
+        <section id="install" className="aur2-shell aur2-band">
+          <div className="aur2-section-head">
+            <p className="aur2-kicker">Install</p>
+            <h2>Run Auralize locally in a few steps.</h2>
+            <p>
+              If you want to self-host or contribute, clone the repository and run both the API and
+              web app.
+            </p>
+          </div>
+          <div className="aur2-stack-grid">
+            <div className="aur2-stack-col">
+              <h3>1. Clone and install</h3>
+              <ul>
+                <li>Clone the repo and open the project root.</li>
+                <li>Install frontend dependencies in <code>apps/web</code>.</li>
+                <li>Create a Python virtual environment in <code>apps/api</code>.</li>
+              </ul>
+            </div>
+            <div className="aur2-stack-col">
+              <h3>2. Configure environment</h3>
+              <ul>
+                <li>Create <code>apps/api/.env</code> from <code>.env.example</code>.</li>
+                <li>Set <code>YOUTUBE_API_KEY</code> and optional <code>LASTFM_API_KEY</code>.</li>
+                <li>Set <code>VITE_API_BASE_URL=http://localhost:8000</code> for web.</li>
+              </ul>
+            </div>
+            <div className="aur2-stack-col">
+              <h3>3. Start services</h3>
+              <ul>
+                <li>Run API: <code>uvicorn app.main:app --reload</code> in <code>apps/api</code>.</li>
+                <li>Run web: <code>npm run dev</code> in <code>apps/web</code>.</li>
+                <li>Open <code>http://localhost:5173</code>.</li>
+              </ul>
+            </div>
+            <div className="aur2-stack-col">
+              <h3>Alternative</h3>
+              <ul>
+                <li>Use Docker Compose from repo root.</li>
+                <li>Launch both API and web with one command.</li>
+                <li>Great for first-time setup consistency.</li>
+              </ul>
+            </div>
           </div>
         </section>
 
@@ -179,12 +265,16 @@ export function AuraliseLandingPage() {
           </div>
         </section>
 
-        <section className="aur2-shell aur2-band aur2-final-cta">
-          <p className="aur2-kicker">Ready</p>
-          <h2>Build dashboard or preview</h2>
+        <section id="links" className="aur2-shell aur2-band aur2-final-cta">
+          <p className="aur2-kicker">Links</p>
+          <h2>Jump straight to the two things users need.</h2>
           <div className="aur2-cta-row">
-            <a className="aur2-btn aur2-btn-primary" href={liveAppUrl} target="_blank" rel="noreferrer">Open live app</a>
-            <a className="aur2-btn" href={githubUrl} target="_blank" rel="noreferrer">View source on GitHub</a>
+            <a className="aur2-btn aur2-btn-primary" href={liveAppUrl} target="_blank" rel="noreferrer">
+              Open product
+            </a>
+            <a className="aur2-btn" href={githubUrl} target="_blank" rel="noreferrer">
+              GitHub repository
+            </a>
           </div>
         </section>
       </main>
